@@ -1,4 +1,4 @@
-# My visualizations
+## My visualizations
 
 All the interactive data visualization of mine.
 [Click me to see the host address](https://amory0709.github.io/)
