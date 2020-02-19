@@ -1,7 +1,8 @@
 # My visualizations
 
 All the interactive data visualization of mine.
-[Click me to see the host address](https://amory0709.github.io/)
+
+[Click me to see the host address!](https://amory0709.github.io/)
 
 ## [Sound of Humanity](https://washuvis.github.io/soundofhumanity/draft-v4/index.html)
 A simulation of the birth and death occurrence in the U.S. region with population data in 2019.
