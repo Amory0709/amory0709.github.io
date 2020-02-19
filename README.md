@@ -1,9 +1,12 @@
-## Welcome to GitHub Pages
+# My visualizations
 
-You can use the [editor on GitHub](https://github.com/Amory0709/amory0709.github.io/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
+All the interactive data visualization of mine.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
-
+## [Sound of Humanity](https://washuvis.github.io/soundofhumanity/draft-v4/index.html)
+A simulation of the birth and death occurrence in the U.S. region with population data in 2019.
+    
+    
+## [Electoral Map](https://notavailiableyet.com)
 ### Markdown
 
 Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
