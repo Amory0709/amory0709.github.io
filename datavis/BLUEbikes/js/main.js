@@ -10,11 +10,11 @@ loadData();
 
 function loadData() {
 
-	// Proxy url
-	var proxy = 'http://michaeloppermann.com/proxy.php?format=xml&url=';
+  // Proxy url
+  var proxy = 'http://michaeloppermann.com/proxy.php?format=xml&url=';
 
   // Hubway XML station feed
-  var url = 'https://member.bluebikes.com/data/stations/bikeStations.xml';
+  var url = 'http://member.bluebikes.com/data/stations/bikeStations.xml';
 
   // TO-DO: LOAD DATA
 	$.getJSON(proxy+url, function(jsonData){
@@ -31,7 +31,7 @@ function loadData() {
 function createVis(data) {
 
   // TO-DO: INSTANTIATE VISUALIZATION
-		var parentEle = $();
+	  var parentEle = $();
 	  var stationMap = new StationMap('station-map',data,[42.3601, -71.0589]);
 
 }
