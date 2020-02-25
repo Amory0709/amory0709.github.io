@@ -11,10 +11,10 @@ loadData();
 function loadData() {
 
   // Proxy url
-  var proxy = 'http://michaeloppermann.com/proxy.php?format=xml&url=';
+  var proxy = 'https://michaeloppermann.com/proxy.php?format=xml&url=';
 
   // Hubway XML station feed
-  var url = 'http://member.bluebikes.com/data/stations/bikeStations.xml';
+  var url = 'https://member.bluebikes.com/data/stations/bikeStations.xml';
 
   // TO-DO: LOAD DATA
 	$.getJSON(proxy+url, function(jsonData){
