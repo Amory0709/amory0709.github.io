@@ -12,3 +12,5 @@ Displayed the difference of support each party obtained from 1940-2016.
 
 ### [BLUEbikes Avaliability](datavis/BLUEbikes)
 Stated the avliability of BLUEbikes within each station in the Boston region.
+
+[video](EarthMoon.mp4)
