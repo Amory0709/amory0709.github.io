@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js 测试</title>
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        #status {
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            background: rgba(0,0,0,0.8);
+            border: 1px solid #4facfe;
+        }
+        .success { color: #4facfe; }
+        .error { color: #ff4444; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <div id="status">
+        <h2>正在测试 Three.js...</h2>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // 测试Three.js加载
+        async function testThreeJS() {
+            const statusDiv = document.getElementById('status');
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                // 加载Three.js
+                await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js');
+                
+                // 测试Three.js对象
+                if (typeof THREE !== 'undefined') {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h3>✅ Three.js 加载成功！</h3>
+                            <p>版本: ${THREE.REVISION}</p>
+                            <p>可以正常使用元宇宙场景</p>
+                        </div>
+                    `;
+                    
+                    // 创建一个简单的3D场景测试
+                    createTestScene();
+                    
+                } else {
+                    throw new Error('Three.js对象未定义');
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ 加载失败</h3>
+                        <p>错误: ${error.message}</p>
+                        <p>请检查网络连接</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 创建测试场景
+        function createTestScene() {
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer();
+            
+            renderer.setSize(300, 200);
+            renderer.setClearColor(0x000033);
+            
+            // 创建一个旋转的立方体
+            const geometry = new THREE.BoxGeometry();
+            const material = new THREE.MeshBasicMaterial({ color: 0x4facfe });
+            const cube = new THREE.Mesh(geometry, material);
+            scene.add(cube);
+            
+            camera.position.z = 5;
+            
+            // 添加到页面
+            document.getElementById('status').appendChild(renderer.domElement);
+            
+            // 动画循环
+            function animate() {
+                requestAnimationFrame(animate);
+                cube.rotation.x += 0.01;
+                cube.rotation.y += 0.01;
+                renderer.render(scene, camera);
+            }
+            animate();
+        }
+
+        // 动态加载脚本
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        // 开始测试
+        testThreeJS();
+    </script>
+</body>
+</html> 

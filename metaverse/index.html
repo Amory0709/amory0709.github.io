@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLB 招聘元宇宙体验 | 3D互动招聘场景</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="体验SLB公司的3D招聘元宇宙场景，通过互动游戏了解企业文化，收集公司信息，沉浸式求职体验。">
+    <meta name="keywords" content="元宇宙,3D,招聘,SLB,WebGL,Three.js,互动游戏,企业文化,求职体验">
+    <meta name="author" content="SLB Recruitment Team">
+    <meta name="robots" content="index, follow">
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="SLB 招聘元宇宙体验">
+    <meta property="og:description" content="体验3D招聘元宇宙场景，通过互动游戏了解企业文化">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://amory0709.github.io/metaverse/">
+    <meta property="og:image" content="https://amory0709.github.io/metaverse/preview.png">
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="SLB 招聘元宇宙体验">
+    <meta name="twitter:description" content="体验3D招聘元宇宙场景，通过互动游戏了解企业文化">
+    <meta name="twitter:image" content="https://amory0709.github.io/metaverse/preview.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>">
+    
+    <!-- Preload Critical Resources -->
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js" as="script">
+    <link rel="preload" href="css/styles.css" as="style">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+    
+    <!-- Google Analytics (可选) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        // gtag('config', 'GA_MEASUREMENT_ID'); // 取消注释并替换为实际ID
+    </script>
+</head>
+<body>
+    <!-- 加载界面 -->
+    <div id="loading-screen">
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">正在加载元宇宙场景...</div>
+            <div class="loading-progress">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主界面 -->
+    <div id="game-container">
+        <canvas id="three-canvas"></canvas>
+        
+        <!-- UI 界面 -->
+        <div id="ui-overlay">
+            <!-- 欢迎信息 -->
+            <div id="welcome-panel" class="panel">
+                <h2>欢迎来到 SLB 招聘元宇宙！</h2>
+                <p>使用 WASD 键移动，鼠标控制视角</p>
+                <p>点击蓝色方块收集信息，找到隐藏的彩蛋！</p>
+                <button id="start-btn">开始探索</button>
+                
+                <!-- 添加返回链接 -->
+                <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2);">
+                    <a href="https://amory0709.github.io/" style="color: #4facfe; text-decoration: none; font-size: 14px;">
+                        ← 返回主页
+                    </a>
+                </div>
+            </div>
+
+            <!-- 游戏信息 -->
+            <div id="game-info" class="info-panel">
+                <div class="info-item">
+                    <span class="info-label">收集进度:</span>
+                    <span id="collection-progress">0/5</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">得分:</span>
+                    <span id="score">0</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">时间:</span>
+                    <span id="timer">00:00</span>
+                </div>
+            </div>
+
+            <!-- 交互提示 -->
+            <div id="interaction-hint" class="hint-panel">
+                <p>按 E 键交互</p>
+            </div>
+
+            <!-- 信息弹窗 -->
+            <div id="info-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <h3 id="modal-title">公司信息</h3>
+                    <div id="modal-body">
+                        <p>这里是公司的详细信息...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 游戏完成面板 -->
+            <div id="completion-panel" class="panel">
+                <h2>🎉 恭喜完成探索！</h2>
+                <p>您已经收集了所有的公司信息</p>
+                <div id="final-score">最终得分: <span id="final-score-value">0</span></div>
+                <button id="restart-btn">重新开始</button>
+                <button id="apply-btn">立即申请职位</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 控制说明 -->
+    <div id="controls-help">
+        <div class="controls-toggle" id="controls-toggle">?</div>
+        <div class="controls-content" id="controls-content">
+            <h4>控制说明</h4>
+            <ul>
+                <li><strong>WASD</strong> - 移动角色</li>
+                <li><strong>鼠标</strong> - 控制视角</li>
+                <li><strong>E</strong> - 交互</li>
+                <li><strong>空格</strong> - 跳跃</li>
+                <li><strong>Shift</strong> - 跑步</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 底部信息 -->
+    <div style="position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); 
+                color: rgba(255,255,255,0.6); font-size: 12px; z-index: 100; 
+                pointer-events: none;">
+        Powered by Three.js | 
+        <a href="debug.html" style="color: #4facfe; pointer-events: all; text-decoration: none;">调试工具</a>
+    </div>
+
+    <!-- JavaScript加载 -->
+    <script>
+        // 动态加载Three.js，确保加载完成后再加载其他脚本
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        // 加载所有脚本
+        async function loadAllScripts() {
+            try {
+                // 首先尝试加载Three.js CDN
+                try {
+                    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js');
+                    console.log('Three.js CDN加载成功');
+                } catch (cdnError) {
+                    console.warn('CDN加载失败，尝试备用CDN:', cdnError);
+                    // 尝试备用CDN
+                    await loadScript('https://unpkg.com/three@0.158.0/build/three.min.js');
+                    console.log('Three.js 备用CDN加载成功');
+                }
+                
+                // 然后加载其他脚本
+                await loadScript('js/main.js');
+                await loadScript('js/game.js');
+                console.log('所有脚本加载完成');
+                
+            } catch (error) {
+                console.error('脚本加载失败:', error);
+                // 显示错误信息给用户
+                document.body.innerHTML = `
+                    <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                                background: #ff4444; color: white; padding: 20px; border-radius: 10px; 
+                                text-align: center; z-index: 9999;">
+                        <h2>⚠️ 加载失败</h2>
+                        <p>无法加载必要的脚本文件。</p>
+                        <p>请检查网络连接，或稍后再试。</p>
+                        <button onclick="location.reload()" style="background: #4facfe; color: white; 
+                                border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; 
+                                margin-top: 10px;">重新加载</button>
+                        <br><br>
+                        <a href="https://amory0709.github.io/" style="color: white; text-decoration: underline;">
+                            返回主页
+                        </a>
+                    </div>
+                `;
+            }
+        }
+
+        // 页面加载完成后开始加载脚本
+        document.addEventListener('DOMContentLoaded', loadAllScripts);
+
+        // 统计访问（可选）
+        if (typeof gtag !== 'undefined') {
+            gtag('event', 'page_view', {
+                page_title: 'SLB 招聘元宇宙体验',
+                page_location: window.location.href
+            });
+        }
+    </script>
+</body>
+</html> 
