@@ -1,0 +1,214 @@
+:root {
+    --bg-color: #103E5B;
+    --text-white: #ffffff;
+    --text-yellow: #FDD835;
+    --text-red: #E53935;
+    --map-fill: #D3D3D3;
+    --map-stroke: #999;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Roboto', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-white);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+}
+
+#container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#p5-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5; /* Above map, below controls */
+    pointer-events: none; /* Let clicks pass through to map/controls if needed, but p5 usually needs interaction? Assuming passive viz */
+}
+
+/* Header & Left Controls */
+#header {
+    position: absolute;
+    top: 40px;
+    left: 40px;
+    z-index: 10;
+    width: 250px;
+    pointer-events: auto;
+}
+
+h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.5rem;
+    margin: 0 0 20px 0;
+}
+
+.population-counter h2 {
+    font-size: 1.2rem;
+    margin: 0;
+    font-weight: 700;
+}
+
+#current-population {
+    font-size: 2rem;
+    font-weight: 700;
+    display: block;
+    margin-top: 5px;
+}
+
+.controls {
+    margin-top: 50px;
+}
+
+.speed-control {
+    margin-top: 10px;
+}
+
+#speed-slider {
+    width: 100%;
+}
+
+.time-display {
+    margin-top: 60px;
+}
+
+.time-display h3 {
+    font-size: 1rem;
+    margin-bottom: 5px;
+}
+
+#elapsed-time {
+    font-size: 1.5rem;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 10px;
+}
+
+#current-date {
+    font-size: 0.8rem;
+    opacity: 0.8;
+    line-height: 1.4;
+}
+
+/* Right Panel */
+#right-panel {
+    position: absolute;
+    top: 40px;
+    right: 40px;
+    z-index: 10;
+    text-align: right;
+    width: 300px;
+    pointer-events: auto;
+}
+
+.buttons {
+    margin-bottom: 50px;
+}
+
+.buttons button {
+    background: transparent;
+    border: 2px solid white;
+    color: white;
+    padding: 8px 20px;
+    font-size: 1.2rem;
+    font-family: 'Playfair Display', serif;
+    cursor: pointer;
+    margin-left: 10px;
+    transition: all 0.3s;
+}
+
+.buttons button:hover {
+    background: white;
+    color: var(--bg-color);
+}
+
+.stats-box {
+    text-align: right;
+}
+
+.since-label {
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.3);
+    display: inline-block;
+    padding-bottom: 5px;
+}
+
+.stat-group {
+    margin-bottom: 30px;
+}
+
+.stat-group h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    margin: 0;
+}
+
+.stat-group.birth h3 {
+    color: var(--text-yellow);
+}
+
+.stat-group.death h3 {
+    color: var(--text-red);
+}
+
+.stat-group p {
+    margin: 5px 0 0 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+/* Map Visualization */
+#viz {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
+.states {
+    fill: var(--map-fill);
+    stroke: white;
+    stroke-width: 0.5px;
+}
+
+.event-circle {
+    opacity: 0.8;
+    stroke: none;
+}
+
+.event-ripple {
+    fill: none;
+    stroke-width: 2px;
+    opacity: 0.5;
+}
+
+.label-line {
+    stroke: white;
+    stroke-width: 1px;
+}
+
+.label-text {
+    fill: white;
+    font-size: 14px;
+    text-shadow: 1px 1px 2px black;
+    font-family: 'Playfair Display', serif;
+}
+
+.sub-label {
+    fill: #ddd;
+    font-size: 12px;
+    font-family: 'Roboto', sans-serif;
+}

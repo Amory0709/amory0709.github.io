@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Sound of Life</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://d3js.org/topojson.v2.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+</head>
+<body>
+
+    <div id="container">
+        <!-- P5 Canvas Container -->
+        <div id="p5-container"></div>
+
+        <!-- Header / Left Info -->
+        <div id="header">
+            <h1>the sound of life</h1>
+            <div class="population-counter">
+                <h2>current population:</h2>
+                <span id="current-population">328731186</span>
+            </div>
+
+            <div class="controls">
+                <label>Simulation Speed</label>
+                <div class="speed-control">
+                    <span id="speed-label">100%</span>
+                    <input type="range" id="speed-slider" min="10" max="500" value="100">
+                </div>
+            </div>
+
+            <div class="time-display">
+                <h3>Elapsed time</h3>
+                <span id="elapsed-time">00:00:00</span>
+                <div id="current-date">Wed Apr 08 2020<br>00:00:00 GMT-0500</div>
+            </div>
+        </div>
+
+        <!-- Right Info -->
+        <div id="right-panel">
+            <div class="buttons">
+                <button id="btn-about">about</button>
+                <button id="btn-table">table</button>
+            </div>
+            
+            <div class="stats-box">
+                <div class="since-label">since simulation start</div>
+                
+                <div class="stat-group birth">
+                    <h3>births: <span id="birth-count">0</span></h3>
+                    <p>8.00 avg seconds per birth</p>
+                </div>
+
+                <div class="stat-group death">
+                    <h3>deaths: <span id="death-count">0</span></h3>
+                    <p>11.00 avg seconds per death</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Visualization Map -->
+        <div id="viz"></div>
+    </div>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
