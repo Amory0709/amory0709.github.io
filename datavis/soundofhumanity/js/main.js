@@ -93,7 +93,7 @@ const p5Sketch = (p) => {
 
         for (let i = particles.length - 1; i >= 0; i--) {
             let part = particles[i];
-            
+
             // Physics
             part.vy += gravity;
             part.x += part.vx;
@@ -104,29 +104,29 @@ const p5Sketch = (p) => {
                 part.y = floorY - part.r;
                 part.vy *= bounceFactor;
                 // Friction
-                part.vx *= 0.95; 
+                part.vx *= 0.95;
             }
-            
+
             // Wall Collision
             if (part.x + part.r > p.width || part.x - part.r < 0) {
                 part.vx *= -1;
             }
-            
+
             // Particle-Particle Collision (Simple O(N^2) for now, N is small)
             for (let j = i - 1; j >= 0; j--) {
                 let other = particles[j];
                 let d = p.dist(part.x, part.y, other.x, other.y);
                 let minDist = part.r + other.r;
-                
+
                 if (d < minDist) {
                     // Simple position correction (move apart)
                     let angle = p.atan2(other.y - part.y, other.x - part.x);
                     let targetX = part.x + p.cos(angle) * minDist;
                     let targetY = part.y + p.sin(angle) * minDist;
-                    
+
                     let ax = (targetX - other.x) * 0.05; // spring constant
                     let ay = (targetY - other.y) * 0.05;
-                    
+
                     part.vx -= ax;
                     part.vy -= ay;
                     other.vx += ax;
@@ -144,7 +144,7 @@ const p5Sketch = (p) => {
                 part.isSettled = true;
             }
         }
-        
+
         // Limit number of particles for performance
         if (particles.length > 200) {
             particles.shift();
@@ -185,13 +185,13 @@ function initAudio() {
 
 function playSound(type) {
     if (!audioCtx) return;
-    
+
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-    
+
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-    
+
     if (type === 'birth') {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(800, audioCtx.currentTime);
@@ -228,7 +228,7 @@ const projection = d3.geoAlbersUsa()
 
 const path = d3.geoPath().projection(projection);
 
-d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json").then(function(us) {
+d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json").then(function (us) {
     // Draw Map
     svg.append("g")
         .selectAll("path")
@@ -259,17 +259,17 @@ function triggerEvent(type) {
         state.population--;
         document.getElementById('death-count').innerText = state.deaths;
     }
-    
+
     document.getElementById('current-population').innerText = state.population;
-    
-    if(state.isPlaying) playSound(type);
+
+    if (state.isPlaying) playSound(type);
 
     // Visual Effect (D3 Pop)
     const coords = projection([loc.lon, loc.lat]);
     if (!coords) return;
 
     const color = type === 'birth' ? '#FDD835' : '#E53935';
-    
+
     // Map Ripple Effect
     const circle = svg.append("circle")
         .attr("cx", coords[0])
@@ -281,30 +281,35 @@ function triggerEvent(type) {
     circle.transition()
         .duration(500)
         .attr("r", 8)
-        .on("end", function() {
+        .on("end", function () {
             // Once max size reached, remove D3 circle and spawn physics particle
             d3.select(this).remove();
-            
+
             // --- P5.js Falling Particle ---
             if (particleSystem && particleSystem.addParticle) {
                 particleSystem.addParticle(coords[0], coords[1], type);
             }
         });
 
-    if (type === 'death') {
-        const ripple = svg.append("circle")
-            .attr("cx", coords[0])
-            .attr("cy", coords[1])
-            .attr("r", 8)
-            .attr("stroke", color)
-            .attr("class", "event-ripple");
+    // Ripple Effect (Water Ripple) - Applies to both Birth and Death
+    const ripple = svg.append("circle")
+        .attr("cx", coords[0])
+        .attr("cy", coords[1])
+        .attr("r", 8)
+        .attr("stroke", color)
+        .attr("class", "event-ripple");
 
-        ripple.transition()
-            .duration(1500)
-            .attr("r", 30)
-            .style("opacity", 0)
-            .remove();
-    }
+    ripple.transition()
+        .duration(1500)
+        .attr("r", 30)
+        .style("opacity", 0)
+        .remove();
+
+    /* 
+if (type === 'death') {
+     // Death logic was here, now unified.
+} 
+*/
 
     // Text Label
     const textGroup = svg.append("g")
@@ -315,7 +320,7 @@ function triggerEvent(type) {
         .attr("x", 15)
         .attr("y", -5)
         .attr("class", "label-text");
-    
+
     textGroup.append("text")
         .text(`${loc.name}`)
         .attr("x", 15)
