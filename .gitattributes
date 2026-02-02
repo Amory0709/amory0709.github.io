@@ -1,0 +1,2 @@
+high-performance-points/assets/properties/*.json filter=lfs diff=lfs merge=lfs -text
+high-performance-points/assets/*.json filter=lfs diff=lfs merge=lfs -text

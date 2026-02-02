@@ -1,5 +1,12 @@
 const projects = [
     {
+        title: "High Performance Points",
+        description: "A high-performance web-based volume renderer using Angular and Three.js, capable of rendering large datasets in real-time.",
+        image: "img/high_performance_points_thumb.png",
+        link: "high-performance-points/index.html",
+        tags: ["WebGL", "Three.js", "Angular"]
+    },
+    {
         title: "2024 IDPwD",
         description: "A new engaging and interactive experience designed for the International Day of Persons with Disabilities 2024.",
         image: "img/2024IDPwD.png",
