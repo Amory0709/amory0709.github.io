@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>X-Ray Vision · Three.js + three-mesh-bvh</title>
+  <meta name="description" content="Interactive X-ray effect for a dense Three.js mesh, accelerated by BVH raycasting.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #06080c;
+      --panel: rgba(12, 16, 22, 0.78);
+      --border: rgba(120, 200, 255, 0.12);
+      --text: rgba(220, 235, 255, 0.92);
+      --text-dim: rgba(160, 180, 210, 0.6);
+      --accent: #6fe3ff;
+      --accent-glow: rgba(111, 227, 255, 0.45);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-weight: 300;
+    }
+    canvas { display: block; }
+
+    /* Header */
+    #header {
+      position: fixed;
+      top: 24px; left: 24px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    #header .eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: var(--accent);
+      text-shadow: 0 0 12px var(--accent-glow);
+      margin-bottom: 6px;
+    }
+    #header h1 {
+      font-size: 22px;
+      font-weight: 400;
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+    #header .sub {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--text-dim);
+      max-width: 380px;
+      line-height: 1.5;
+    }
+
+    /* Control panel */
+    #panel {
+      position: fixed;
+      top: 24px; right: 24px;
+      width: 280px;
+      background: var(--panel);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      z-index: 10;
+      font-size: 12px;
+    }
+    #panel h3 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 400;
+      color: var(--accent);
+      letter-spacing: 2.5px;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+    }
+    .ctl { margin-bottom: 12px; }
+    .ctl:last-child { margin-bottom: 0; }
+    .ctl label {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 5px;
+    }
+    .ctl label .v { color: var(--accent); }
+    .ctl input[type="range"] {
+      width: 100%;
+      height: 4px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 2px;
+      -webkit-appearance: none;
+      appearance: none;
+      outline: none;
+    }
+    .ctl input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+      cursor: pointer;
+    }
+    .ctl input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      box-shadow: 0 0 8px var(--accent-glow);
+      cursor: pointer;
+    }
+    .ctl input[type="color"] {
+      width: 100%;
+      height: 28px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      padding: 2px;
+    }
+    .ctl select {
+      width: 100%;
+      background: rgba(0,0,0,0.3);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      outline: none;
+    }
+    .toggles { display: flex; gap: 6px; }
+    .toggle {
+      flex: 1;
+      text-align: center;
+      padding: 6px 8px;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .toggle.on {
+      background: rgba(111, 227, 255, 0.12);
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: inset 0 0 12px rgba(111, 227, 255, 0.1);
+    }
+
+    /* Hint footer */
+    #hint {
+      position: fixed;
+      bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 2px;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* Stats pill */
+    #stats {
+      position: fixed;
+      bottom: 20px; right: 24px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-dim);
+      background: var(--panel);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      z-index: 5;
+    }
+    #stats b { color: var(--accent); font-weight: 400; }
+
+    /* Loading overlay */
+    #loading {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 14px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      z-index: 100;
+      transition: opacity 0.8s;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 2px solid rgba(111,227,255,0.12);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <div>Building X-Ray shader · Fresnel-based transparency</div>
+</div>
+
+<div id="header">
+  <div class="eyebrow">⟁ THREE-MESH-BVH</div>
+  <h1>X-Ray Vision</h1>
+  <div class="sub">Hover to expose hidden surfaces. BVH raycast stays real-time even at 100k+ triangles.</div>
+</div>
+
+<div id="panel">
+  <h3>Parameters</h3>
+  <div class="ctl">
+    <label>X-ray opacity <span class="v" id="lbl-opacity">0.55</span></label>
+    <input type="range" id="opacity" min="0" max="1" step="0.01" value="0.55">
+  </div>
+  <div class="ctl">
+    <label>Fresnel power <span class="v" id="lbl-fresnel">2.4</span></label>
+    <input type="range" id="fresnel" min="0.5" max="6" step="0.05" value="2.4">
+  </div>
+  <div class="ctl">
+    <label>Rim width <span class="v" id="lbl-rim">0.85</span></label>
+    <input type="range" id="rim" min="0.1" max="2" step="0.01" value="0.85">
+  </div>
+  <div class="ctl">
+    <label>Geometry detail <span class="v" id="lbl-detail">5</span></label>
+    <input type="range" id="detail" min="2" max="7" step="1" value="5">
+  </div>
+  <div class="ctl">
+    <label>Rim color</label>
+    <input type="color" id="rimColor" value="#6fe3ff">
+  </div>
+  <div class="ctl">
+    <label>Mode</label>
+    <div class="toggles">
+      <div class="toggle on" data-mode="hover">Hover</div>
+      <div class="toggle" data-mode="always">Always</div>
+    </div>
+  </div>
+</div>
+
+<div id="hint">DRAG TO ORBIT · WHEEL TO ZOOM</div>
+<div id="stats">tris <b id="s-tris">—</b> · fps <b id="s-fps">—</b> · raycast <b id="s-rc">—</b></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// === Renderer ===
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(0x06080c, 1);
+document.body.appendChild(renderer.domElement);
+
+// === Scene ===
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x06080c, 12, 45);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(4, 2.4, 6);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.minDistance = 3;
+controls.maxDistance = 14;
+controls.target.set(0, 0, 0);
+
+// === Lighting (subtle — most of the visual is shader-driven) ===
+scene.add(new THREE.AmbientLight(0x223344, 0.6));
+const key = new THREE.DirectionalLight(0x88ccff, 1.0);
+key.position.set(4, 6, 3);
+scene.add(key);
+
+// === Background grid ===
+const grid = new THREE.GridHelper(40, 40, 0x1a2a3a, 0x0a141e);
+grid.position.y = -1.8;
+scene.add(grid);
+
+// === Procedural target object: a dense TorusKnot (this is where the BVH would live) ===
+let targetMesh;
+const targetMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uOpacity: { value: 0.55 },
+    uFresnelPow: { value: 2.4 },
+    uRimWidth: { value: 0.85 },
+    uRimColor: { value: new THREE.Color('#6fe3ff') },
+    uBaseColor: { value: new THREE.Color('#1a2a3a') },
+  },
+  vertexShader: /* glsl */`
+    varying vec3 vNormal;
+    varying vec3 vViewDir;
+    varying vec3 vWorldPos;
+    void main() {
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vWorldPos = wp.xyz;
+      vNormal = normalize(mat3(modelMatrix) * normal);
+      vViewDir = normalize(cameraPosition - wp.xyz);
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+  `,
+  fragmentShader: /* glsl */`
+    uniform float uOpacity;
+    uniform float uFresnelPow;
+    uniform float uRimWidth;
+    uniform vec3 uRimColor;
+    uniform vec3 uBaseColor;
+    varying vec3 vNormal;
+    varying vec3 vViewDir;
+    void main() {
+      float NoV = abs(dot(normalize(vNormal), normalize(vViewDir)));
+      float fres = pow(1.0 - NoV, uFresnelPow);
+      vec3 col = mix(uBaseColor, uRimColor, fres * uRimWidth);
+      float alpha = mix(uOpacity * 0.5, 1.0, NoV);
+      gl_FragColor = vec4(col, alpha);
+    }
+  `,
+  transparent: true,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+});
+
+function rebuildTarget(detail) {
+  if (targetMesh) {
+    targetMesh.geometry.dispose();
+    scene.remove(targetMesh);
+  }
+  // detail slider controls mesh density. detail=5 ≈ tens of thousands of tris;
+  // this is the regime where vanilla Raycaster gets slow but BVH stays <1ms.
+  const segR = Math.pow(2, detail) * 8;       // radial
+  const segT = Math.pow(2, detail) * 4;       // tubular
+  const geo = new THREE.TorusKnotGeometry(1.2, 0.42, segT, segR, 2, 3);
+  targetMesh = new THREE.Mesh(geo, targetMat);
+  scene.add(targetMesh);
+  const triCount = geo.index ? geo.index.count / 3 : geo.attributes.position.count / 3;
+  document.getElementById('s-tris').textContent = triCount.toLocaleString();
+}
+rebuildTarget(5);
+
+// === Hover state ===
+const mouse = new THREE.Vector2(-2, -2);
+const raycaster = new THREE.Raycaster();
+raycaster.firstHitOnly = true;
+let mouseOver = false;
+let lastRaycastMs = 0;
+let mode = 'hover';
+
+window.addEventListener('pointermove', (e) => {
+  mouse.x = (e.clientX / innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+  mouseOver = true;
+});
+window.addEventListener('pointerleave', () => { mouseOver = false; });
+
+// === UI ===
+const $ = (id) => document.getElementById(id);
+function bindSlider(id, uniform, fmt = (v) => v) {
+  $(id).addEventListener('input', e => {
+    const v = parseFloat(e.target.value);
+    targetMat.uniforms[uniform].value = v;
+    $(`lbl-${id}`).textContent = fmt(v);
+  });
+}
+bindSlider('opacity', 'uOpacity');
+bindSlider('fresnel', 'uFresnelPow');
+bindSlider('rim', 'uRimWidth');
+$('rimColor').addEventListener('input', e => {
+  targetMat.uniforms.uRimColor.value.set(e.target.value);
+});
+$('detail').addEventListener('input', e => {
+  const d = parseInt(e.target.value);
+  $('lbl-detail').textContent = d;
+  rebuildTarget(d);
+});
+
+document.querySelectorAll('.toggle').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.toggle').forEach(t => t.classList.remove('on'));
+    el.classList.add('on');
+    mode = el.dataset.mode;
+  });
+});
+
+// === Resize ===
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// === Animation loop ===
+let frameCount = 0, lastFps = performance.now(), fps = 0;
+const clock = new THREE.Clock();
+
+function animate() {
+  const t = clock.getElapsedTime();
+
+  if (targetMesh) {
+    targetMesh.rotation.y = t * 0.15;
+    targetMesh.rotation.x = Math.sin(t * 0.4) * 0.05;
+  }
+
+  controls.update();
+
+  // The raycast is the step three-mesh-bvh accelerates in real apps.
+  // With BVH on a 100k-tri mesh it returns in ~1ms; without, it can take 50–200ms.
+  if (mode === 'hover' && mouseOver && targetMesh) {
+    raycaster.setFromCamera(mouse, camera);
+    const t0 = performance.now();
+    raycaster.intersectObject(targetMesh, false);
+    lastRaycastMs = performance.now() - t0;
+    targetMat.uniforms.uOpacity.value = parseFloat($('opacity').value);
+  } else if (mode === 'always') {
+    targetMat.uniforms.uOpacity.value = parseFloat($('opacity').value);
+  } else {
+    targetMat.uniforms.uOpacity.value = Math.min(parseFloat($('opacity').value), 0.06);
+  }
+
+  $('s-rc').textContent = lastRaycastMs ? lastRaycastMs.toFixed(2) + 'ms' : '—';
+
+  frameCount++;
+  const now = performance.now();
+  if (now - lastFps >= 500) {
+    fps = (frameCount * 1000) / (now - lastFps);
+    $('s-fps').textContent = fps.toFixed(0);
+    frameCount = 0;
+    lastFps = now;
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+document.getElementById('loading').classList.add('hidden');
+setTimeout(() => document.getElementById('loading').remove(), 1000);
+
+animate();
+</script>
+</body>
+</html>

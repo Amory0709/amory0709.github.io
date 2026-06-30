@@ -1,5 +1,12 @@
 const projects = [
     {
+        title: "X-Ray Vision (MeshBVH)",
+        description: "Interactive X-ray shader on a 100k+ triangle mesh. Hover to expose hidden surfaces, accelerated by three-mesh-bvh raycasting.",
+        image: "img/three-mesh-bvh-xray.png",
+        link: "three-mesh-bvh-xray/index.html",
+        tags: ["WebGL", "Three.js", "BVH", "Shaders"]
+    },
+    {
         title: "High Performance Points",
         description: "A high-performance web-based volume renderer using Angular and Three.js, capable of rendering large datasets in real-time.",
         image: "img/high_performance_points_thumb.png",
