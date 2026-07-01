@@ -437,7 +437,11 @@ function clearScene() {
 }
 
 function loadGLB(source, isFile = false, revokeAfterLoad = false) {
-  if (loading) return;
+  // If a load is in flight, silently ignore rather than queue — clicks fire fast.
+  if (loading) {
+    console.warn('[loadGLB] already loading, ignoring click');
+    return;
+  }
   loading = true;
 
   const loadingEl = document.getElementById('loading');
@@ -453,9 +457,10 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
     }
   };
   const onError = (err) => {
-    console.error('GLB load failed:', err);
-    statusEl.textContent = 'Failed · see console';
+    console.error('GLB load failed:', err, 'source=', source);
+    statusEl.textContent = 'Failed: ' + (err?.message || err) + ' (see console)';
     loading = false;
+    setTimeout(() => loadingEl.classList.add('hidden'), 1500);
   };
 
   gltfLoader.load(source, (gltf) => {
