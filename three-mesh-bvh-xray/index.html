@@ -268,13 +268,16 @@ const renderer = new THREE.WebGLRenderer({
   // ignore our slice sliders entirely.
   localClippingEnabled: true,
 });
+// Belt-and-suspenders: some three.js builds ignore the constructor option; the
+// renderer.localClippingEnabled property must be true for clipping to take effect.
+renderer.localClippingEnabled = true;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.setClearColor(0x06080c, 1);
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'bvh-clip-fix';
+const __BUILD_COMMIT = 'bvh-clip-fix2';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, __build: __BUILD_COMMIT };
 
