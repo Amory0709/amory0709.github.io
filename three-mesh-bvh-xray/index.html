@@ -132,13 +132,13 @@
 <body>
 <div id="loading">
   <div class="spinner"></div>
-  <div>Building pagoda · ~80k tris</div>
+  <div>Loading LittlestTokyo.glb · 4 MB · Draco-compressed</div>
 </div>
 
 <div id="header">
   <div class="eyebrow">⟁ THREE-MESH-BVH</div>
   <h1>Cross-Section Viewer</h1>
-  <div class="sub">Inspect a dense 3D model by slicing along X / Y / Z — even with a million triangles, BVH raycasts find the slice in &lt;1ms.</div>
+  <div class="sub">Slice a 180k+ triangle Tokyo city block along X / Y / Z. Vanilla Raycaster takes 50–200 ms per hover; three-mesh-bvh drops it to &lt;1 ms.</div>
 </div>
 
 <div id="panel">
@@ -198,148 +198,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-// === Procedural pagoda geometry (inline so it shares THREE scope) ===
-function buildPagodaGeometry() {
-  const positions = [];
-  const normals = [];
-
-  function pushTri(a, b, c) {
-    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
-    const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
-    let nx = uy * vz - uz * vy;
-    let ny = uz * vx - ux * vz;
-    let nz = ux * vy - uy * vx;
-    const nl = Math.hypot(nx, ny, nz) || 1;
-    nx /= nl; ny /= nl; nz /= nl;
-    positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
-    normals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
-  }
-  function pushQuad(p1, p2, p3, p4) {
-    pushTri(p1, p2, p3);
-    pushTri(p1, p3, p4);
-  }
-  function pushBox(cx, cy, cz, sx, sy, sz) {
-    const x0 = cx - sx / 2, x1 = cx + sx / 2;
-    const y0 = cy - sy / 2, y1 = cy + sy / 2;
-    const z0 = cz - sz / 2, z1 = cz + sz / 2;
-    pushQuad([x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0]);
-    pushQuad([x0, y0, z1], [x0, y0, z0], [x0, y1, z0], [x0, y1, z1]);
-    pushQuad([x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]);
-    pushQuad([x0, y0, z1], [x1, y0, z1], [x1, y0, z0], [x0, y0, z0]);
-    pushQuad([x1, y0, z1], [x0, y0, z1], [x0, y1, z1], [x1, y1, z1]);
-    pushQuad([x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]);
-  }
-
-  const baseR = 5.0;
-  const platformH = 0.45;
-  for (let i = 0; i < 8; i++) {
-    const a1 = (i / 8) * Math.PI * 2;
-    const a2 = ((i + 1) / 8) * Math.PI * 2;
-    const x1 = Math.cos(a1) * baseR, z1 = Math.sin(a1) * baseR;
-    const x2 = Math.cos(a2) * baseR, z2 = Math.sin(a2) * baseR;
-    pushTri([0, platformH, 0], [x1, platformH, z1], [x2, platformH, z2]);
-    pushTri([0, 0, 0], [x2, 0, z2], [x1, 0, z1]);
-    pushQuad([x1, 0, z1], [x2, 0, z2], [x2, platformH, z2], [x1, platformH, z1]);
-  }
-
-  const tiers = 5;
-  const tierHeight = 1.4;
-  const shrink = 0.78;
-  const startY = platformH;
-  for (let t = 0; t < tiers; t++) {
-    const yBot = startY + t * tierHeight;
-    const yTop = yBot + tierHeight * 0.85;
-    const rBot = baseR * Math.pow(shrink, t) * 0.9;
-    const rTop = baseR * Math.pow(shrink, t + 1) * 0.9;
-
-    for (let i = 0; i < 8; i++) {
-      const a1 = (i / 8) * Math.PI * 2;
-      const a2 = ((i + 1) / 8) * Math.PI * 2;
-      const x1b = Math.cos(a1) * rBot, z1b = Math.sin(a1) * rBot;
-      const x2b = Math.cos(a2) * rBot, z2b = Math.sin(a2) * rBot;
-      const x1t = Math.cos(a1) * rTop, z1t = Math.sin(a1) * rTop;
-      const x2t = Math.cos(a2) * rTop, z2t = Math.sin(a2) * rTop;
-      pushQuad([x1b, yBot, z1b], [x2b, yBot, z2b], [x2t, yTop, z2t], [x1t, yTop, z1t]);
-    }
-
-    const rRoof = rTop * 1.30;
-    const rPeak = rTop * 0.10;
-    const roofY = yTop;
-    const peakY = roofY + 0.55;
-    for (let i = 0; i < 8; i++) {
-      const a0 = ((i - 0.5) / 8) * Math.PI * 2;
-      const a1 = (i / 8) * Math.PI * 2;
-      const a2 = ((i + 0.5) / 8) * Math.PI * 2;
-      const a3 = ((i + 1) / 8) * Math.PI * 2;
-      const a4 = ((i + 1.5) / 8) * Math.PI * 2;
-      const peak = [0, peakY, 0];
-      const outerL = [Math.cos(a0) * rRoof, roofY, Math.sin(a0) * rRoof];
-      const outerR = [Math.cos(a4) * rRoof, roofY, Math.sin(a4) * rRoof];
-      const innerL = [Math.cos(a1) * rTop, roofY, Math.sin(a1) * rTop];
-      const innerR = [Math.cos(a3) * rTop, roofY, Math.sin(a3) * rTop];
-      const peakBase = [Math.cos(a2) * rPeak, roofY, Math.sin(a2) * rPeak];
-      pushTri(peak, outerL, innerL);
-      pushTri(peak, innerL, peakBase);
-      pushTri(peak, peakBase, innerR);
-      pushTri(peak, innerR, outerR);
-    }
-  }
-
-  const spireBaseY = startY + tiers * tierHeight;
-  const spireH = 2.4;
-  const spireSides = 12;
-  const spireRO = 0.85;
-  const peakHi = spireBaseY + spireH;
-  for (let i = 0; i < spireSides; i++) {
-    const a1 = (i / spireSides) * Math.PI * 2;
-    const a2 = ((i + 1) / spireSides) * Math.PI * 2;
-    const p1 = [Math.cos(a1) * spireRO, spireBaseY, Math.sin(a1) * spireRO];
-    const p2 = [Math.cos(a2) * spireRO, spireBaseY, Math.sin(a2) * spireRO];
-    pushTri(p1, p2, [0, peakHi, 0]);
-  }
-
-  // Central pillar
-  const pillarH = peakHi;
-  const pillarR = 0.22;
-  const pillarSides = 10;
-  const pillarBot = [];
-  for (let i = 0; i < pillarSides; i++) {
-    const a = (i / pillarSides) * Math.PI * 2;
-    pillarBot.push([Math.cos(a) * pillarR, 0, Math.sin(a) * pillarR]);
-  }
-  for (let i = 0; i < pillarSides; i++) {
-    const j = (i + 1) % pillarSides;
-    const topI = [pillarBot[i][0], pillarH, pillarBot[i][2]];
-    const topJ = [pillarBot[j][0], pillarH, pillarBot[j][2]];
-    pushQuad(pillarBot[i], pillarBot[j], topJ, topI);
-  }
-
-  // Stairs
-  for (let s = 0; s < 4; s++) {
-    const w = 1.8 - s * 0.18;
-    const h = 0.22;
-    const d = 0.45;
-    pushBox(0, s * h + h / 2, baseR + 0.5 + s * d, w, h, d);
-  }
-
-  // Per-tier: 4 short posts + 8 thin rail segments
-  for (let t = 0; t < tiers; t++) {
-    const yR = startY + t * tierHeight + tierHeight * 0.85;
-    const r = baseR * Math.pow(shrink, t + 1) * 0.9 * 1.05;
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2 + Math.PI / 8;
-      pushBox(Math.cos(a) * r, yR + 0.05, Math.sin(a) * r, 0.06, 0.20, 0.06);
-    }
-  }
-
-  const geom = new THREE.BufferGeometry();
-  geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geom.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geom.computeBoundingBox();
-  geom.computeBoundingSphere();
-  return geom;
-}
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // === Renderer ===
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -372,12 +231,120 @@ const grid = new THREE.GridHelper(40, 40, 0x1a2a3a, 0x0a141e);
 grid.position.y = -0.02;
 scene.add(grid);
 
-// === Build pagoda ===
-const geometry = buildPagodaGeometry();
-geometry.computeBoundingBox();
-const aabbMin = geometry.boundingBox.min.clone();
-const aabbMax = geometry.boundingBox.max.clone();
-const aabbSize = geometry.boundingBox.getSize(new THREE.Vector3());
+// === Build pagoda: load GLB model from local repo ===
+// LittlestTokyo is Draco-compressed; configure DRACOLoader before loading.
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/');
+dracoLoader.preload();  // ensures decoder wasm is fetched before first decompress
+
+const gltfLoader = new GLTFLoader();
+gltfLoader.setDRACOLoader(dracoLoader);
+const PRIMARY_URL = 'models/LittlestTokyo.glb';
+let pagoda = null;       // root Object3D holding the loaded scene
+let wireLines = null;    // LineSegments overlay of the densest mesh
+let geometry = null;     // we'll pick the largest mesh for shader-based slicing
+let triCount = 0;
+let pendingLoad = true;
+
+gltfLoader.load('models/LittlestTokyo.glb', (gltf) => {
+  pagoda = gltf.scene;
+  scene.add(pagoda);
+
+  // Sum up all meshes' triangle counts and pick the largest child for slicing.
+  // (slicing the whole tiny scene is fine too but the effect shines on dense meshes.)
+  let best = null;
+  let bestTris = 0;
+  pagoda.traverse(obj => {
+    if (obj.isMesh && obj.geometry) {
+      obj.geometry.computeBoundingBox();
+      const idx = obj.geometry.index;
+      const pos = obj.geometry.attributes.position;
+      const tris = idx ? idx.count / 3 : pos.count / 3;
+      if (tris > bestTris) {
+        bestTris = tris;
+        best = obj;
+      }
+    }
+  });
+  if (best) {
+    geometry = best.geometry;
+    geometry.computeBoundingBox();
+    // Replace best mesh's material with our slice-aware ShaderMaterial
+    targetMat.uniforms.uOpacity.value = parseFloat(document.getElementById('opacity').value);
+    targetMat.uniforms.uAabbMin.value.copy(geometry.boundingBox.min);
+    targetMat.uniforms.uAabbMax.value.copy(geometry.boundingBox.max);
+    aabbMin.copy(geometry.boundingBox.min);
+    aabbMax.copy(geometry.boundingBox.max);
+    aabbSize.copy(geometry.boundingBox.getSize(new THREE.Vector3()));
+    best.material = targetMat;
+    triCount = bestTris;
+
+    // Wireframe overlay of the same mesh
+    const wire = new THREE.WireframeGeometry(geometry);
+    const wmat = new THREE.LineBasicMaterial({ color: 0xa8e6ff, transparent: true, opacity: 0.45 });
+    const lines = new THREE.LineSegments(wire, wmat);
+    best.parent.add(lines);
+    lines.position.copy(best.position);
+    lines.rotation.copy(best.rotation);
+    lines.scale.copy(best.scale);
+    wireLines = lines;
+  }
+
+  // Count total tris across the whole scene for display
+  pagoda.traverse(obj => {
+    if (obj.isMesh && obj.geometry) {
+      const pos = obj.geometry.attributes.position;
+      const idx = obj.geometry.index;
+      triCount += idx ? idx.count / 3 : pos.count / 3;
+    }
+  });
+  document.getElementById('s-tris').textContent = triCount.toLocaleString();
+  pendingLoad = false;
+  updateSlicePlanePositions();
+  document.getElementById('loading')?.classList.add('hidden');
+  setTimeout(() => document.getElementById('loading')?.remove(), 600);
+
+  // Auto-fit camera to the loaded model
+  const fullBox = new THREE.Box3().setFromObject(pagoda);
+  const center = fullBox.getCenter(new THREE.Vector3());
+  const fullSize = fullBox.getSize(new THREE.Vector3());
+  const maxDim = Math.max(fullSize.x, fullSize.y, fullSize.z);
+  controls.target.copy(center);
+  // Decide Y up vs Z up based on the bounding box aspect — Y tall = architecture
+  const isTall = fullSize.y > Math.max(fullSize.x, fullSize.z) * 1.2;
+  if (!isTall) {
+    // Likely Z-up; tilt the camera accordingly
+    pagoda.rotation.x = -Math.PI / 2;
+    pagoda.updateMatrixWorld(true);
+    const newBox = new THREE.Box3().setFromObject(pagoda);
+    const nc = newBox.getCenter(new THREE.Vector3());
+    const ns = newBox.getSize(new THREE.Vector3());
+    controls.target.copy(nc);
+    const md = Math.max(ns.x, ns.y, ns.z);
+    camera.position.set(nc.x + md * 1.4, nc.y + md * 1.0, nc.z + md * 1.4);
+  } else {
+    const md = maxDim;
+    camera.position.set(center.x + md * 1.0, center.y + md * 0.7, center.z + md * 1.0);
+  }
+  controls.update();
+}, (xhr) => {
+  const pct = xhr.total ? Math.round(xhr.loaded * 100 / xhr.total) : 0;
+  document.querySelector('#loading div:last-child')?.replaceChildren(
+    document.createTextNode(`Loading LittlestTokyo.glb · ${pct}%`)
+  );
+}, (err) => {
+  console.error('GLB load failed:', err);
+  document.querySelector('#loading div:last-child')?.replaceChildren(
+    document.createTextNode('Failed to load GLB · check models/ folder')
+  );
+});
+
+// === Forward declarations (referenced before declaration) ===
+const aabbMin = new THREE.Vector3();
+const aabbMax = new THREE.Vector3();
+const aabbSize = new THREE.Vector3(1, 1, 1);
 
 // === Shader uniforms ===
 const u = {
@@ -450,18 +417,6 @@ const targetMat = new THREE.ShaderMaterial({
   depthWrite: true,
 });
 
-const pagoda = new THREE.Mesh(geometry, targetMat);
-scene.add(pagoda);
-
-const wireGeo = new THREE.WireframeGeometry(geometry);
-const wireMat = new THREE.LineBasicMaterial({
-  color: 0xa8e6ff,
-  transparent: true,
-  opacity: 0.45,
-});
-const wireLines = new THREE.LineSegments(wireGeo, wireMat);
-scene.add(wireLines);
-
 // === Slice-plane visualizations ===
 const slicePlaneMat = new THREE.MeshBasicMaterial({
   color: 0x6fe3ff,
@@ -503,7 +458,7 @@ updateSlicePlanePositions();
 // === State ===
 const state = { rotate: false, bvhDebug: true, wireframe: true };
 
-document.getElementById('s-tris').textContent = (geometry.attributes.position.count / 3).toLocaleString();
+// GLB will populate s-tris once loaded. Don't show procedural placeholder.
 
 // === UI bindings ===
 function $(id) { return document.getElementById(id); }
