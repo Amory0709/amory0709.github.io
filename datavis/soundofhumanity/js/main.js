@@ -78,152 +78,59 @@ let particleSystem;
 const p5Sketch = (p) => {
     let particles = [];
     const gravity = 0.5;
-    const bounceFactor = -0.55;
-    // Box containment layout (recomputed in resize / each frame).
-    //
-    // Box is a TALL VERTICAL COLUMN at the bottom-center of the
-    // canvas where particles accumulate. The user (2026-07-01)
-    // asked for "a vertical-axis box boundary after falling" —
-    // the visual model is a container you can see particles stack
-    // up inside, not a wide catcher tray along the bottom.
-    //
-    // The box's tall+narrow shape is what makes particles pile
-    // vertically: a wide box just lays them out in a row on the
-    // floor (the previous bug). Width = 320px is narrow enough
-    // that 4-5 particles span the floor horizontally, forcing
-    // the 6th+ to stack on top.
-    //
-    // State x is mapped to box x so the geographic spread is
-    // preserved in the pile: events from Maine land on the right
-    // side of the box, Alaska on the left.
-    const BOX_WIDTH = 260;
-    const BOX_BOTTOM_OFFSET = 50;     // box bottom this many px from canvas bottom
-    const BOX_TOP = 670;              // box top — sits BELOW the US map (which
-                                       //   ends around y=665), so the entire
-                                       //   box outline is visible against the
-                                       //   dark-blue background. Previously
-                                       //   BOX_HEIGHT=480 put boxTop at y=470,
-                                      //   which landed INSIDE the map area —
-                                      //   the white 80-alpha stroke vanished
-                                      //   against the gray map fill, making
-                                      //   the box look cut off / "position
-                                      //   wrong" (bug 2026-07-01 22:43).
-    const BOX_HEIGHT = 280;          // 950 - 670
-    const FLOOR_FRICTION = 0.92;      // horizontal velocity decay on floor contact
-    const PARTICLE_R = 8;             // matches addParticle below
-
-    let floorY = 0;
-    let boxTop = 0;
-    let boxLeft = 0;
-    let boxRight = 0;
-
-    function recomputeBox() {
-        floorY = p.height - BOX_BOTTOM_OFFSET;
-        // BOX_TOP is fixed below the map (not floorY - BOX_HEIGHT)
-        // so the box stays in the visible "below the map" band on
-        // any window size — the alternative formula drifts the box
-        // top around as the window resizes, which would re-introduce
-        // the "behind the map" overlap on tall windows.
-        boxTop = Math.min(BOX_TOP, floorY - 60);
-        // Center the box horizontally so the visual focus is
-        // straight down the middle of the screen (under the map).
-        boxLeft = (p.width - BOX_WIDTH) / 2;
-        boxRight = boxLeft + BOX_WIDTH;
-    }
+    const bounceFactor = -0.6;
+    const floorY = window.innerHeight - 50; // Just above bottom timeline
 
     p.setup = () => {
         let canvas = p.createCanvas(window.innerWidth, window.innerHeight);
         canvas.parent('p5-container');
         p.clear(); // Transparent background
-        recomputeBox();
     };
 
     p.draw = () => {
-        // Cheap (constant time) — keeps the box responsive to
-        // resize without needing a separate resize listener chain.
-        recomputeBox();
         p.clear();
-
-        // Box outline intentionally NOT drawn. User feedback
-        // (2026-07-01 22:44): "box还有边 不要边" — the physics
-        // containment (floor + left/right walls) is still active,
-        // particles still stack inside the box, but no visible
-        // rectangle is drawn around them.
-
         p.noStroke();
 
         for (let i = particles.length - 1; i >= 0; i--) {
             let part = particles[i];
 
-            // Physics: gravity then integrate position.
+            // Physics
             part.vy += gravity;
             part.x += part.vx;
             part.y += part.vy;
 
-            // === Box containment ===
-            // Floor: position-correct + bounce + friction.
+            // Floor Collision
             if (part.y + part.r >= floorY) {
                 part.y = floorY - part.r;
                 part.vy *= bounceFactor;
-                part.vx *= FLOOR_FRICTION;
+                // Friction
+                part.vx *= 0.95;
             }
 
-            // Left/right walls only enforce when the particle is
-            // WITHIN the box vertically. Above the box (during the
-            // free-fall from spawn point) the particle can travel
-            // horizontally to land at its proportional x. Once
-            // inside the box, walls clamp position so particles
-            // pile up vertically instead of spreading along the
-            // floor.
-            if (part.y > boxTop - part.r) {
-                if (part.x - part.r < boxLeft) {
-                    part.x = boxLeft + part.r;
-                    if (part.vx < 0) part.vx = -part.vx * 0.5;
-                } else if (part.x + part.r > boxRight) {
-                    part.x = boxRight - part.r;
-                    if (part.vx > 0) part.vx = -part.vx * 0.5;
-                }
+            // Wall Collision
+            if (part.x + part.r > p.width || part.x - part.r < 0) {
+                part.vx *= -1;
             }
 
-            // Particle-particle collision (O(N^2), N is capped at
-            // 200 — fast enough). Use squared distance for the
-            // first check to skip sqrt. Position correction is
-            // split 50/50 to keep momentum exchange symmetric;
-            // velocity exchange uses the relative normal velocity
-            // so particles don't gain energy from overlap.
+            // Particle-Particle Collision (Simple O(N^2) for now, N is small)
             for (let j = i - 1; j >= 0; j--) {
                 let other = particles[j];
-                let dx = other.x - part.x;
-                let dy = other.y - part.y;
+                let d = p.dist(part.x, part.y, other.x, other.y);
                 let minDist = part.r + other.r;
-                let distSq = dx * dx + dy * dy;
 
-                if (distSq < minDist * minDist && distSq > 1e-6) {
-                    let dist = Math.sqrt(distSq);
-                    let overlap = minDist - dist;
-                    let nx = dx / dist;
-                    let ny = dy / dist;
+                if (d < minDist) {
+                    // Simple position correction (move apart)
+                    let angle = p.atan2(other.y - part.y, other.x - part.x);
+                    let targetX = part.x + p.cos(angle) * minDist;
+                    let targetY = part.y + p.sin(angle) * minDist;
 
-                    // Position correction (push apart).
-                    let push = overlap * 0.5;
-                    part.x -= nx * push;
-                    part.y -= ny * push;
-                    other.x += nx * push;
-                    other.y += ny * push;
+                    let ax = (targetX - other.x) * 0.05; // spring constant
+                    let ay = (targetY - other.y) * 0.05;
 
-                    // Velocity exchange along normal (elastic, but
-                    // with restitution < 1 so collisions settle).
-                    let relVx = other.vx - part.vx;
-                    let relVy = other.vy - part.vy;
-                    let sep = relVx * nx + relVy * ny;
-                    if (sep < 0) {
-                        let restitution = 0.4;
-                        let impulse = sep * (1 + restitution) * 0.5;
-                        part.vx += impulse * nx;
-                        part.vy += impulse * ny;
-                        other.vx -= impulse * nx;
-                        other.vy -= impulse * ny;
-                    }
+                    part.vx -= ax;
+                    part.vy -= ay;
+                    other.vx += ax;
+                    other.vy += ay;
                 }
             }
 
@@ -231,19 +138,14 @@ const p5Sketch = (p) => {
             p.fill(part.color);
             p.circle(part.x, part.y, part.r * 2);
 
-            // Settled marker (kept for potential future use — no
-            // visible UI reads it today, but cheaper to compute
-            // than re-derive later).
-            if (
-                Math.abs(part.vy) < 0.05 &&
-                Math.abs(part.vx) < 0.05 &&
-                part.y > floorY - part.r - 2
-            ) {
+            // Life cycle management - remove if off screen or settled?
+            // For now keep them piling up to a limit
+            if (Math.abs(part.vy) < 0.1 && Math.abs(part.vx) < 0.1 && part.y > floorY - part.r - 2) {
                 part.isSettled = true;
             }
         }
 
-        // Limit number of particles for performance.
+        // Limit number of particles for performance
         if (particles.length > 200) {
             particles.shift();
         }
@@ -251,31 +153,18 @@ const p5Sketch = (p) => {
 
     p.windowResized = () => {
         p.resizeCanvas(window.innerWidth, window.innerHeight);
-        recomputeBox();
     };
 
-    // External hook to add particle. The (x, y) arg is the
-    // state-projected map coordinate passed by triggerEvent. We
-    // ignore its y and remap x into the box's horizontal range
-    // so particles pile up in proportion to their geographic
-    // location (East-coast events on the right, West-coast on
-    // the left). Spawning at the TOP of the box gives a clean
-    // "falls into the container" visual.
-    p.addParticle = (x, _y, type) => {
-        // Clamp into box range with a small margin so the
-        // particle spawns clearly inside the walls.
-        const margin = PARTICLE_R + 2;
-        const boxX = p.constrain(x, boxLeft + margin, boxRight - margin);
-        const boxY = boxTop + margin;
-
+    // External hook to add particle
+    p.addParticle = (x, y, type) => {
         particles.push({
-            x: boxX + p.random(-2, 2),
-            y: boxY,
-            vx: p.random(-0.4, 0.4),
+            x: x,
+            y: y,
+            vx: p.random(-2, 2), // Slight horizontal spread
             vy: 0,
-            r: PARTICLE_R,
+            r: 8, // radius
             color: type === 'birth' ? '#FDD835' : '#E53935',
-            isSettled: false,
+            isSettled: false
         });
     };
 };
