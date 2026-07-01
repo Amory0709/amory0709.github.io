@@ -332,55 +332,132 @@ const u = {
   uAabbMax:    { value: new THREE.Vector3() },
 };
 
-const targetMat = new THREE.ShaderMaterial({
-  uniforms: u,
-  vertexShader: /* glsl */`
-    varying vec3 vWorldPos;
-    varying vec3 vLocalPos;
-    void main() {
-      vec4 wp = modelMatrix * vec4(position, 1.0);
-      vWorldPos = wp.xyz;
-      vLocalPos = position;
-      gl_Position = projectionMatrix * viewMatrix * wp;
+// Build a slicing ShaderMaterial. Two flavours:
+//   hasVC=true  → uses per-vertex `color` attribute (LittlestTokyo, glTF2 with COLORS_0)
+//   hasVC=false → falls back to the uniform tint uColor
+// Either way the result still has the same uniforms, slice math, and highlight band.
+let targetMat = null;          // assigned per-load in refreshScene()
+function makeSlicingMat(hasVC) {
+  const vcVert = hasVC ? `
+    attribute vec3 color;        // glTF vertex color (the model's original palette)
+    varying vec3 vVertColor;` : `
+    varying vec3 vVertColor;`;
+  const vcFrag = hasVC ? `
+    varying vec3 vVertColor;` : `
+    varying vec3 vVertColor;`;
+  const vcRead = hasVC ? `
+      vVertColor = color;` : `
+      vVertColor = vec3(1.0);`;  // unused on this path — kept so the linker is happy
+  return new THREE.ShaderMaterial({
+    uniforms: u,
+    vertexShader: /* glsl */`
+      varying vec3 vWorldPos;
+      varying vec3 vLocalPos;${vcVert}
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vLocalPos = position;${vcRead}
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform float uOpacity;
+      uniform vec3  uColor;
+      uniform vec3  uHighlight;
+      uniform float uSliceX, uSliceY, uSliceZ;
+      uniform float uBvhSize;
+      uniform float uBvhDebug;
+      uniform vec3  uAabbMin;
+      uniform vec3  uAabbMax;
+      varying vec3 vWorldPos;
+      varying vec3 vLocalPos;${vcFrag}
+
+      void main() {
+        // Use LOCAL position so that slicing follows the model as it rotates / scales.
+        vec3 norm = (vLocalPos - uAabbMin) / max(uAabbMax - uAabbMin, vec3(1e-5));
+
+        bool insideX = norm.x <= uSliceX + 1e-4;
+        bool insideY = norm.y <= uSliceY + 1e-4;
+        bool insideZ = norm.z <= uSliceZ + 1e-4;
+        bool inside = insideX && insideY && insideZ;
+
+        float ed = uBvhSize;
+        float band = 0.0;
+        if (abs(norm.x - uSliceX) < ed && insideY && insideZ) band = max(band, 1.0 - abs(norm.x - uSliceX) / ed);
+        if (abs(norm.y - uSliceY) < ed && insideX && insideZ) band = max(band, 1.0 - abs(norm.y - uSliceY) / ed);
+        if (abs(norm.z - uSliceZ) < ed && insideX && insideY) band = max(band, 1.0 - abs(norm.z - uSliceZ) / ed);
+
+        // Blend rule:
+        //   - if the model carries vertex colors, use them (fixes "all green" report)
+        //   - otherwise tint with the user-selected uColor
+        //   - in both cases, the slice-plane highlight band tints toward uHighlight
+        vec3 base = ${hasVC ? 'vVertColor' : 'uColor'};
+        vec3 col = mix(base * 0.7, uHighlight, band * 0.9);
+        float alpha = inside ? uOpacity : 0.0;
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: true,
+  });
+}
+
+// Build vertex pairs (every line is just two verts back-to-back) forming an
+// AABB-relative axis-aligned grid. Cell size is driven by `cellSize`. Result
+// is a Float32Array ready for a `position` attribute on a LineSegments mesh.
+// maxCellsPerAxis caps the line count so a giant model with cellSize=0.001
+// doesn't draw 8M lines.
+function buildAabbGrid(min, max, cellSize, maxCellsPerAxis = 64) {
+  // effective cell size so we never exceed maxCellsPerAxis
+  const size = [max.x - min.x, max.y - min.y, max.z - min.z];
+  const cs = [
+    Math.max(cellSize, size[0] / maxCellsPerAxis),
+    Math.max(cellSize, size[1] / maxCellsPerAxis),
+    Math.max(cellSize, size[2] / maxCellsPerAxis),
+  ];
+  const counts = [
+    Math.max(2, Math.ceil(size[0] / cs[0]) + 1),
+    Math.max(2, Math.ceil(size[1] / cs[1]) + 1),
+    Math.max(2, Math.ceil(size[2] / cs[2]) + 1),
+  ];
+  const verts = [];
+  const push = (ax, x, y, z, dx, dy, dz) => {
+    // emit a segment from (x,y,z) → (x+dx,y+dy,z+dz)
+    verts.push(x, y, z, x + dx, y + dy, z + dz);
+  };
+  // Lines parallel to X (vary Y, Z)
+  for (let zi = 0; zi < counts[2]; zi++) {
+    const z = min.z + zi * cs[2];
+    if (z > max.z) continue;
+    for (let yi = 0; yi < counts[1]; yi++) {
+      const y = min.y + yi * cs[1];
+      if (y > max.y) continue;
+      push('x', min.x, y, z, size[0], 0, 0);
     }
-  `,
-  fragmentShader: /* glsl */`
-    uniform float uOpacity;
-    uniform vec3  uColor;
-    uniform vec3  uHighlight;
-    uniform float uSliceX, uSliceY, uSliceZ;
-    uniform float uBvhSize;
-    uniform float uBvhDebug;
-    uniform vec3  uAabbMin;
-    uniform vec3  uAabbMax;
-    varying vec3 vWorldPos;
-    varying vec3 vLocalPos;
-
-    void main() {
-      // Use LOCAL position so that slicing follows the model as it rotates / scales.
-      vec3 norm = (vLocalPos - uAabbMin) / max(uAabbMax - uAabbMin, vec3(1e-5));
-
-      bool insideX = norm.x <= uSliceX + 1e-4;
-      bool insideY = norm.y <= uSliceY + 1e-4;
-      bool insideZ = norm.z <= uSliceZ + 1e-4;
-      bool inside = insideX && insideY && insideZ;
-
-      float ed = uBvhSize;
-      float band = 0.0;
-      if (abs(norm.x - uSliceX) < ed && insideY && insideZ) band = max(band, 1.0 - abs(norm.x - uSliceX) / ed);
-      if (abs(norm.y - uSliceY) < ed && insideX && insideZ) band = max(band, 1.0 - abs(norm.y - uSliceY) / ed);
-      if (abs(norm.z - uSliceZ) < ed && insideX && insideY) band = max(band, 1.0 - abs(norm.z - uSliceZ) / ed);
-
-      vec3 col = uColor;
-      col = mix(col * 0.7, uHighlight, band * 0.95);
-      float alpha = inside ? uOpacity : 0.0;
-      gl_FragColor = vec4(col, alpha);
+  }
+  // Lines parallel to Y (vary X, Z)
+  for (let xi = 0; xi < counts[0]; xi++) {
+    const x = min.x + xi * cs[0];
+    if (x > max.x) continue;
+    for (let zi = 0; zi < counts[2]; zi++) {
+      const z = min.z + zi * cs[2];
+      if (z > max.z) continue;
+      push('y', x, min.y, z, 0, size[1], 0);
     }
-  `,
-  transparent: true,
-  side: THREE.DoubleSide,
-  depthWrite: true,
-});
+  }
+  // Lines parallel to Z (vary X, Y)
+  for (let yi = 0; yi < counts[1]; yi++) {
+    const y = min.y + yi * cs[1];
+    if (y > max.y) continue;
+    for (let xi = 0; xi < counts[0]; xi++) {
+      const x = min.x + xi * cs[0];
+      if (x > max.x) continue;
+      push('z', x, y, min.z, 0, 0, size[2]);
+    }
+  }
+  return new Float32Array(verts);
+}
 
 // === Slice-plane visualization meshes ===
 const slicePlaneMat = new THREE.MeshBasicMaterial({
@@ -510,18 +587,41 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         aabbSize.copy(box.getSize(new THREE.Vector3()));
         u.uAabbMin.value.copy(aabbMin);
         u.uAabbMax.value.copy(aabbMax);
-        // Replace material with shader
-        best.material = targetMat;
+        // Build the slicing shader. Pick the right shader source for THIS geometry:
+        //   - if the GLB carries per-vertex `color` attribute (LittlestTokyo, etc.) →
+        //     use the vertex-color shader so the model keeps its original palette.
+        //   - otherwise (uploaded GLB without colors, primitive GLTFs, etc.) → fall back
+        //     to a shader that uses the uniform tint alone.
+        const hasVC = !!geometry.attributes.color;
+        best.material = makeSlicingMat(hasVC);
+        targetMat = best.material;
         window.__xr.best = best;
         window.__xr.targetMat = targetMat;
-        // Wireframe overlay attached to best.parent so it follows transforms
-        const wire = new THREE.WireframeGeometry(geometry);
-        const wmat = new THREE.LineBasicMaterial({ color: 0xa8e6ff, transparent: true, opacity: 0.45 });
-        wireLines = new THREE.LineSegments(wire, wmat);
+        window.__xr.hasVC = hasVC;
+
+        // ── Grid overlay (replaces the old dense per-triangle wireframe) ─────────────
+        // We build an AABB grid in LOCAL coords of `best`. Cell size is driven by the
+        // existing `uBvhSize` slider so there's a single "BVH cell" knob. Visible only
+        // when the user toggles "Wireframe" on. Far fewer lines than WireframeGeometry,
+        // and actually cell-shaped rather than a fan of triangle edges.
+        if (wireLines) {
+          best.parent.remove(wireLines);
+          wireLines.geometry?.dispose();
+          wireLines.material?.dispose();
+          wireLines = null;
+        }
+        const cellSize = Math.max(u.uBvhSize.value, 0.005);
+        const gridVerts = buildAabbGrid(aabbMin, aabbMax, cellSize, 64); // ≤64 cells per axis
+        const gridGeom = new THREE.BufferGeometry();
+        gridGeom.setAttribute('position', new THREE.BufferAttribute(gridVerts, 3));
+        const gridMat = new THREE.LineBasicMaterial({ color: 0xa8e6ff, transparent: true, opacity: 0.5 });
+        wireLines = new THREE.LineSegments(gridGeom, gridMat);
+        wireLines.visible = state.wireframe;
         best.parent.add(wireLines);
         wireLines.position.copy(best.position);
         wireLines.rotation.copy(best.rotation);
         wireLines.scale.copy(best.scale);
+        window.__xr.wireLines = wireLines;
       }
 
       // Reset slice sliders to 1.0 so user sees full model first
@@ -590,7 +690,22 @@ function bindSlider(id, uniform, lbl) {
     u[uniform].value = v;
     $(lbl).textContent = fmt(v);
     updateSlicePlanePositions();
+    // rebuilding the grid is only relevant for the BVH-cell-size slider
+    if (uniform === 'uBvhSize' && wireLines) rebuildGrid();
   });
+}
+
+// Regenerate the AABB grid overlay in place with the current cell size.
+// Disposes old attribute and builds a fresh BufferGeometry; cheap because the
+// line count is small (capped) and we're only rebuilding on slider input.
+function rebuildGrid() {
+  if (!wireLines) return;
+  const cs = Math.max(u.uBvhSize.value, 0.005);
+  const verts = buildAabbGrid(aabbMin, aabbMax, cs, 64);
+  wireLines.geometry.dispose();
+  const fresh = new THREE.BufferGeometry();
+  fresh.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  wireLines.geometry = fresh;
 }
 bindSlider('sliceX', 'uSliceX', 'lbl-x');
 bindSlider('sliceY', 'uSliceY', 'lbl-y');
