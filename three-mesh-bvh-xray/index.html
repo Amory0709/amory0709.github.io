@@ -452,13 +452,18 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
 
   const loadingEl = document.getElementById('loading');
   loadingEl.classList.remove('hidden');
-  // Re-show the loading element in case its visibility was hidden by a prior load
   const statusEl = loadingEl.querySelector('div:last-child');
+  // Reset text immediately so a stale value from a previous load (e.g.
+  // the "184%" you see when re-opening the page mid-load) doesn't linger
+  // in front of the user as the new load kicks off.
   statusEl.textContent = (isFile ? 'Decoding ' : 'Loading ') + source + '…';
 
   const onProgress = (xhr) => {
     if (xhr.total) {
-      const pct = Math.round(xhr.loaded * 100 / xhr.total);
+      // xhr.loaded can briefly exceed xhr.total while the browser finishes
+      // streaming a compressed/proxied response. Clamp so the progress
+      // number never reads >100%.
+      const pct = Math.min(100, Math.round(xhr.loaded * 100 / xhr.total));
       statusEl.textContent = `${isFile ? 'Decoding' : 'Loading'} ${pct}%`;
     }
   };
