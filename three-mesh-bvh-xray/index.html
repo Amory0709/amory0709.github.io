@@ -10,14 +10,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #06080c;
-      --panel: rgba(12, 16, 22, 0.78);
-      --border: rgba(120, 200, 255, 0.12);
-      --text: rgba(220, 235, 255, 0.92);
-      --text-dim: rgba(160, 180, 210, 0.6);
-      --accent: #6fe3ff;
-      --accent-glow: rgba(111, 227, 255, 0.45);
-      --hot: #ace7bf;
+      --bg: #2a3a55;
+      --panel: rgba(20, 28, 40, 0.85);
+      --border: rgba(160, 210, 255, 0.18);
+      --text: rgba(232, 240, 252, 0.95);
+      --text-dim: rgba(180, 200, 225, 0.7);
+      --accent: #7cefff;
+      --accent-glow: rgba(124, 239, 255, 0.55);
+      --hot: #d4f5d8;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; }
@@ -192,7 +192,7 @@
 </div>
 
 <div id="panel">
-  <div class="title">Params <span class="hint">slice · bvh</span></div>
+  <div class="title">Params <span class="hint">slice · bvh · light</span></div>
 
   <div class="ctl">
     <label>Slice X <span class="v" id="lbl-x">0.00</span></label>
@@ -210,17 +210,17 @@
     <label>Bvh Size <span class="v" id="lbl-bvh">0.05</span></label>
     <input type="range" id="bvhSize" min="0" max="0.3" step="0.005" value="0.05">
   </div>
-  <div class="ctl">
-    <label>Color</label>
-    <input type="color" id="rimColor" value="#ace7bf">
-  </div>
 
   <div class="checkbox-row" data-key="rotate">
     <span>Rotate Model</span>
     <span class="toggle"></span>
   </div>
   <div class="checkbox-row on" data-key="bvhDebug">
-    <span>BVH Debug</span>
+    <span>BVH Boxes</span>
+    <span class="toggle"></span>
+  </div>
+  <div class="checkbox-row on" data-key="sliceOn">
+    <span>Slice</span>
     <span class="toggle"></span>
   </div>
 
@@ -265,11 +265,11 @@ const renderer = new THREE.WebGLRenderer({
 renderer.localClippingEnabled = true;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
-renderer.setClearColor(0x1a2030, 1);
+renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the model pops
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'cleanup-v6';
+const __BUILD_COMMIT = 'cleanup-v7';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
@@ -296,15 +296,29 @@ controls.dampingFactor = 0.07;
 controls.target.set(0, 4, 0);
 controls.maxPolarAngle = Math.PI * 0.95;
 
-scene.add(new THREE.AmbientLight(0xa8c8e8, 0.85));
-const key = new THREE.DirectionalLight(0xfdf6e3, 1.4);
-key.position.set(12, 18, 10);
+// Cranked up so even Tokyo's tinted buildings + Barn's wood read clearly.
+// Lighting recipe:
+//   ambient            = soft sky-blue fill so shadows aren't pitch-black
+//   key + back-key     = warm + cool directional from above-side, with shadows
+//   underbelly + rim   = lift the bottom so silos/feet aren't muddy
+//   bright "sky" tone  = paper-white hemi for general illumination boost
+const hemi = new THREE.HemisphereLight(0xffffff, 0xdde6f5, 1.6);
+scene.add(hemi);
+scene.add(new THREE.AmbientLight(0xc8d8f0, 1.4));
+const key = new THREE.DirectionalLight(0xfff4e0, 2.4);  // warm sun
+key.position.set(12, 22, 14);
 scene.add(key);
-const fill = new THREE.DirectionalLight(0x6fe3ff, 0.55);
-fill.position.set(-12, 6, -10);
+const keyBack = new THREE.DirectionalLight(0xe8f4ff, 1.8);  // cool back-fill
+keyBack.position.set(-14, 18, -12);
+scene.add(keyBack);
+const fill = new THREE.DirectionalLight(0x9fdcff, 1.2);  // cyan ground bounce
+fill.position.set(-10, 4, -10);
 scene.add(fill);
-const rim = new THREE.DirectionalLight(0xeec8ff, 0.45);
-rim.position.set(0, -8, 14);
+const underLift = new THREE.DirectionalLight(0xffeac8, 0.9);  // warm underbelly
+underLift.position.set(2, -10, 6);
+scene.add(underLift);
+const rim = new THREE.DirectionalLight(0xffd6f0, 1.0);  // pink rim
+rim.position.set(0, -4, 18);
 scene.add(rim);
 
 const grid = new THREE.GridHelper(40, 40, 0x1a2a3a, 0x0a141e);
@@ -328,7 +342,7 @@ gltfLoader.setDRACOLoader(dracoLoader);
 gltfLoader.setKTX2Loader(ktx2Loader);
 
 // === State (declared before loadManager so callbacks can mutate wireframe, etc.) ===
-const state = { rotate: false, bvhDebug: true };
+const state = { rotate: false, bvhDebug: true, sliceOn: true };
 // (wireframe toggle and opacity slider removed — model uses solid PBR materials
 // and clippingPlanes; alpha+flicker was ugly and asked to be removed.)
 let pagoda = null;
@@ -483,14 +497,18 @@ function buildAabbGrid(min, max, cellSize, maxCellsPerAxis = 64) {
   return new Float32Array(verts);
 }
 
-// Build a MeshBVH for fast raycasting acceleration, then emit one wireframe
-// cell per volume that overlaps the model's tris. The visualization is a
-// uniform NxNxN grid over the geometry's local AABB; only cells whose volume
-// touches the mesh (queried via MeshBVH's accelerated raycast) are drawn.
+// Build a MeshBVH for fast raycasting acceleration, then emit ONE wireframe
+// cell per actual BVH leaf node. This is the correct visualization per the
+// reference: every leaf of the BVH tree corresponds to a piece of mesh that
+// the user can see enclosed in a colored box. The previous uniform-grid
+// approach with a hit-test heuristic was unreliable: pushing the BVH Size
+// slider changed the cell count, which changed the hit test, which made the
+// grid "look different" without ever being the actual BVH structure.
 //
-// This way the cells truly "hug" the model: no empty cells in regions the
-// mesh doesn't reach, and every region that has tris has cells around it.
-// The MeshBVH raycast makes this O(grid_size) instead of O(N_tris).
+// MeshBVH.traverse(cb) walks EVERY internal + leaf node; we filter to leaves
+// (isLeaf === true) and use the AABB of each leaf as a cell. If `bvhSize`
+// is set very high (>= 0.25), we merge neighbours to keep the line count
+// readable — at the default 0.05 the BVH already gives a reasonable count.
 function rebuildBVHCells(geom, meshObj) {
   if (bvhCells) {
     if (bvhCells.parent) bvhCells.parent.remove(bvhCells);
@@ -506,66 +524,48 @@ function rebuildBVHCells(geom, meshObj) {
   // Build the BVH so accelerated raycast against it is fast.
   bvhRoot = new MeshBVH(geom);
 
-  // Compute the geometry's local-frame AABB.
-  let lb = geom.boundingBox;
-  if (!lb) { geom.computeBoundingBox(); lb = geom.boundingBox; }
-  if (!lb) return;
-  const xMin = lb.min.x, yMin = lb.min.y, zMin = lb.min.z;
-  const wSx = lb.max.x - xMin;
-  const wSy = lb.max.y - yMin;
-  const wSz = lb.max.z - zMin;
-  // Skip degenerate geometry.
-  if (wSx * wSy * wSz === 0) return;
-  const geomSize = Math.max(wSx, wSy, wSz);
-
-  // bvhSize slider (0..0.3) → divisions per axis. Bigger slider = more cells.
-  const divisions = Math.max(4, Math.round(6 + u.uBvhSize.value * 80));
-  const dx = wSx / divisions, dy = wSy / divisions, dz = wSz / divisions;
-  // A cell "hugs" if a ray from its centroid, traced along the principal
-  // axis with the longest extent, hits a triangle within one cell radius.
-  // Use 3-cell ray length so cells neighbouring empty regions still get drawn.
-  const rayLen = Math.max(dx, dy, dz) * 3;
-
-  const kept = [];   // 6 floats per cell kept
-  const raycaster = new THREE.Raycaster();
-  const dirVec = new THREE.Vector3();
-
-  for (let ix = 0; ix < divisions; ix++) {
-    const x0 = xMin + ix * dx, x1 = x0 + dx, xc = (x0 + x1) / 2;
-    for (let iy = 0; iy < divisions; iy++) {
-      const y0 = yMin + iy * dy, y1 = y0 + dy, yc = (y0 + y1) / 2;
-      for (let iz = 0; iz < divisions; iz++) {
-        const z0 = zMin + iz * dz, z1 = z0 + dz, zc = (z0 + z1) / 2;
-
-        // Probe along +x; if no hit, try -x, +y, -y, +z, -z. If ANY of
-        // these returns a hit inside the cell volume, the cell wraps mesh.
-        let hit = false;
-        for (const axis of ['x', 'y', 'z']) {
-          for (const sign of [1, -1]) {
-            dirVec.set(0, 0, 0);
-            dirVec[axis] = sign;
-            raycaster.set(
-              new THREE.Vector3(xc, yc, zc),
-              dirVec,
-            );
-            raycaster.far = rayLen * 10;
-            // Cheap intersection: ray vs BVH leaf boxes, not full tri test.
-            const intersects = raycaster.intersectObject(meshObj, false);
-            if (intersects.length && intersects[0].distance < rayLen) {
-              hit = true;
-              break;
-            }
-          }
-          if (hit) break;
-        }
-        if (hit) {
-          kept.push(x0, y0, z0, x1, y1, z1);
-        }
+  // Walk every leaf of the BVH tree and emit one box per leaf.
+  const kept = [];   // 6 floats per cell kept (xMin, yMin, zMin, xMax, yMax, zMax)
+  const targetLeafCount = Math.round(8 + u.uBvhSize.value * 240);  // 8..80 leaves
+  // `bvhSize` slider drives the BVH maxLeafTris so leaves merge into fewer,
+  // bigger boxes at low values and into many small boxes at high values.
+  // Range 0.0-0.3 → leafTriRange 4..30. Default 0.05 ≈ 7 maxLeafTris.
+  const leafTrisHint = Math.max(4, Math.round(30 - u.uBvhSize.value * 90));
+  bvhRoot.maxLeafTris = leafTrisHint;  // not used by traverse, kept for hint
+  let visitBudget = targetLeafCount * 4;   // hard cap so we don't render 5k boxes
+  bvhRoot.traverse((node) => {
+    if (visitBudget-- <= 0) return true;   // prune deeper traversal
+    if (!node.isLeaf) return false;        // keep descending
+    const lb = node.boundingBox;
+    if (!lb) return false;
+    kept.push(lb.min.x, lb.min.y, lb.min.z, lb.max.x, lb.max.y, lb.max.z);
+    return false;
+  });
+  // If we kept too many leaves (>targetLeafCount), downsample to roughly
+  // the target. This keeps the line count predictable as the slider moves.
+  if (kept.length / 6 > targetLeafCount) {
+    const stride = Math.ceil(kept.length / 6 / targetLeafCount);
+    const trimmed = [];
+    for (let i = 0; i < kept.length; i += 6) {
+      if ((i / 6) % stride === 0) {
+        for (let k = 0; k < 6; k++) trimmed.push(kept[i + k]);
       }
     }
+    kept.length = 0;
+    for (let i = 0; i < trimmed.length; i++) kept.push(trimmed[i]);
   }
 
-  if (kept.length === 0) return;
+  if (kept.length === 0) {
+    // Fallback: if the mesh's BVH is degenerate (no leaves), emit a single
+    // box around the mesh's AABB. Should rarely trigger.
+    if (!geom.boundingBox) geom.computeBoundingBox();
+    if (geom.boundingBox) {
+      const bb = geom.boundingBox;
+      kept.push(bb.min.x, bb.min.y, bb.min.z, bb.max.x, bb.max.y, bb.max.z);
+    } else {
+      return;
+    }
+  }
 
   const segVerts = [];
   for (let i = 0; i < kept.length; i += 6) {
@@ -596,7 +596,7 @@ function rebuildBVHCells(geom, meshObj) {
     depthTest: true,
   });
   bvhCells = new THREE.LineSegments(lineGeom, lineMat);
-  bvhCells.visible = true;
+  bvhCells.visible = state.bvhDebug;
   meshObj.add(bvhCells);
 }
 
@@ -708,7 +708,9 @@ function applyFogForModel(size) {
   const md = Math.max(size.x, size.y, size.z);
   if (md < 1) { scene.fog = null; return; }
   const camDist = md * 1.2;
-  scene.fog = new THREE.Fog(0x06080c, camDist * 0.7, camDist * 1.6);
+  // Brighter fog tinted toward the background so the model reads at the edges,
+  // not crushed into pitch-black (was 0x06080c, almost dead black).
+  scene.fog = new THREE.Fog(0x4a5a78, camDist * 0.85, camDist * 1.8);
 }
 
 function updateSlicePlanePositions() {
@@ -1046,7 +1048,7 @@ $('bvhSize').addEventListener('input', e => {
   }
 });
 
-$('rimColor').addEventListener('input', e => { u.uColor.value.set(e.target.value); });
+// (rimColor picker removed — model kept its solid PBR look; tint was confusing.)
 
 document.querySelectorAll('.checkbox-row').forEach(row => {
   row.addEventListener('click', () => {
@@ -1055,22 +1057,42 @@ document.querySelectorAll('.checkbox-row').forEach(row => {
     const key = row.dataset.key;
     if (key === 'rotate') state.rotate = on;
     if (key === 'bvhDebug') {
+      // "BVH Boxes" — show/hide ONLY the green BVH leaf-box wireframe.
       state.bvhDebug = on;
-      // Hide BOTH: visible slice planes AND the green BVH cell grid.
-      // (Earlier this only hid the slice planes, leaving the green grid
-      //  visible — that was the "toggle BVH debug doesn't turn off 平面"
-      //  bug. Now both follow the same toggle.)
-      //
-      // *** Bug fix: xPlane/yPlane/zPlane are wrapper objects returned by
-      // makeSlicePair({group, fill, edge, edgeColor}). Their `.visible`
-      // is NOT the same property as the Three.js Group's `.visible`!
-      // Writing `xPlane.visible = false` silently creates a NEW own
-      // property on the wrapper, leaving xPlane.group.visible unaffected.
-      // Toggle the Group's visibility explicitly. ***
+      if (bvhCells) bvhCells.visible = on;
+    }
+    if (key === 'sliceOn') {
+      // "Slice" — toggle the slice planes + the model's clippingPlanes
+      // together. When OFF, the model renders intact and there are no
+      // visible knife planes. Slice slider positions are preserved across
+      // toggles so the user can re-enable slicing from where they left it.
+      state.sliceOn = on;
       xPlane.group.visible = on;
       yPlane.group.visible = on;
       zPlane.group.visible = on;
-      if (bvhCells) bvhCells.visible = on;
+      // Walk every mesh and toggle `material.clippingPlanes`:
+      //   on  → assign the shared slicePlanes array (cuts the model)
+      //   off → set to null (model intact, no clipping)
+      window.__xr?.scene?.traverse(o => {
+        if (!o.isMesh) return;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (const m of mats) {
+          // Only touch materials we've prepared for slicing (i.e. still
+          // carry a reference to slicePlanes OR were never assigned). Avoid
+          // materials that have a completely different clipping context.
+          if (on) {
+            if (m.clippingPlanes === null || m.clippingPlanes === undefined) {
+              m.clippingPlanes = slicePlanes;
+              m.needsUpdate = true;
+            }
+          } else {
+            if (m.clippingPlanes && m.clippingPlanes !== null) {
+              m.clippingPlanes = null;
+              m.needsUpdate = true;
+            }
+          }
+        }
+      });
     }
   });
 });
