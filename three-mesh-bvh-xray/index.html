@@ -269,9 +269,9 @@ renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the mod
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'cleanup-v8';
+const __BUILD_COMMIT = 'cleanup-v9';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
-window.__xr = { renderer, scene: null, camera: null, best: null, __build: __BUILD_COMMIT };
+window.__xr = { renderer, scene: null, camera: null, best: null, bvhRoot: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
 // the module-scope xPlane/yPlane/zPlane refs directly; this is for inspection).
 window.__xr.xPlaneGroup = null;
@@ -523,6 +523,7 @@ function rebuildBVHCells(geom, meshObj) {
 
   // Build the BVH so accelerated raycast against it is fast.
   bvhRoot = new MeshBVH(geom);
+  window.__xr.bvhRoot = bvhRoot;
 
   // Walk every leaf of the BVH tree and emit one box per leaf.
   // For a Tokyo-sized model with tens of thousands of triangles, the BVH
