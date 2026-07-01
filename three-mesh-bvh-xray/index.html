@@ -663,11 +663,16 @@ function handleFile(file) {
 }
 
 // === Default-load buttons ===
-// Bump this on every push that touches a bundled .glb — turns the GitHub
-// Pages edge cache (max-age=600) from a footgun into a no-op, so users
-// always see the binary we just shipped instead of the one their browser
-// stashed ten minutes ago.
-const GLB_CACHE_BUST = 'v3';
+// Both bundled GLBs sit behind Cache-Control: max-age=600 at the GitHub
+// Pages edge. Browsers key their cache on the response URL, but HTTP
+// semantics treat a query string as part of the URL — most browsers
+// DO treat `?v3` as a distinct cache key from the bare path, but
+// there is no guarantee. To be bulletproof, we append a per-build
+// timestamp at module load. Each fresh page load triggers a unique
+// URL → unconditional revalidation. Combined with the GitHub Pages
+// build timestamp, this is enough to be sure users see the GLB we
+// just shipped.
+const GLB_CACHE_BUST = 'v=' + Date.now();
 
 $('btnDefault').addEventListener('click', () => {
   currentFileEl.textContent = '▶ LittlestTokyo.glb · bundled';
