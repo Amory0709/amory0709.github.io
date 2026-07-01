@@ -272,7 +272,7 @@ renderer.setClearColor(0x06080c, 1);
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = '121b741';
+const __BUILD_COMMIT = '2e7b571';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, __build: __BUILD_COMMIT };
 
