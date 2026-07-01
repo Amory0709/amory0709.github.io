@@ -269,7 +269,7 @@ renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the mod
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'cleanup-v9';
+const __BUILD_COMMIT = 'cleanup-v10';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, bvhRoot: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
@@ -529,23 +529,31 @@ function rebuildBVHCells(geom, meshObj) {
   // For a Tokyo-sized model with tens of thousands of triangles, the BVH
   // has thousands of leaves; we cap to keep line count tractable for the
   // WebGL renderer. Each Box3 wireframe is 12 segments × 2 verts = 24 verts.
+  //
+  // Important — MeshBVH.traverse() return-value semantics:
+  //   return true   = prune this subtree (don't descend further)
+  //   return false  = continue traversal (the default)
+  // Returning `false` (or nothing) keeps the walk going. We return `true`
+  // only when we want to SHORT-CIRCUIT — e.g. once visitBudget runs out.
   const kept = [];   // 6 floats per cell kept (xMin, yMin, zMin, xMax, yMax, zMax)
   // Slider 0→0.3 maps to "few big boxes"→"many small boxes".
-  // Range 30..600 boxes is a sweet spot (Tokyo is rich enough for ~600).
+  // Range 40..600 boxes is a sweet spot (Tokyo is rich enough for ~600).
   const targetLeafCount = Math.round(40 + u.uBvhSize.value * 1900);  // 40..610 leaves
   let visitBudget = targetLeafCount * 8;   // generous budget — internal nodes
                                             // outnumber leaves 6-8x in a BVH
+  let leavesWalked = 0;
   bvhRoot.traverse((node) => {
-    if (visitBudget-- <= 0) return true;   // prune (only reached if BVH is huge)
-    if (!node.isLeaf) return false;        // keep descending
-    const lb = node.boundingBox;
-    if (!lb) return false;
-    kept.push(lb.min.x, lb.min.y, lb.min.z, lb.max.x, lb.max.y, lb.max.z);
-    return false;
+    if (visitBudget-- <= 0) return true;   // stop: budget exhausted
+    if (node.isLeaf) {
+      leavesWalked++;
+      const lb = node.boundingBox;
+      if (lb) kept.push(lb.min.x, lb.min.y, lb.min.z, lb.max.x, lb.max.y, lb.max.z);
+      return true;   // stop: leaf has no children to descend into
+    }
+    return false;   // continue: descend into this internal node's children
   });
-  // If the user's "many boxes" slider pulled in many more than targetLeafCount
-  // (because the BVH had a fixed structure once built), downsample to fit.
-  // This keeps the line count predictable as the slider moves.
+  // If the user's "many boxes" slider pulled in many more than targetLeafCount,
+  // downsample to fit. Keeps the line count predictable as the slider moves.
   if (kept.length / 6 > targetLeafCount) {
     const stride = Math.ceil(kept.length / 6 / targetLeafCount);
     const trimmed = [];
@@ -557,6 +565,8 @@ function rebuildBVHCells(geom, meshObj) {
     kept.length = 0;
     for (let i = 0; i < trimmed.length; i++) kept.push(trimmed[i]);
   }
+  console.info('[xray] BVH traverse: leaves_walked=', leavesWalked,
+    'boxes_kept=', kept.length / 6, 'target=', targetLeafCount);
 
   if (kept.length === 0) {
     // Fallback: if the mesh's BVH is degenerate (no leaves), emit a single
