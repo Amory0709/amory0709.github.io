@@ -665,23 +665,25 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         window.__xr.targetMat = origMat;
         updateSliceClipPlanes();   // recompute now that aabbMin/Max are populated
 
-        // ── Grid overlay (replaces the old dense per-triangle wireframe) ─────────────
-        // We build an AABB grid in LOCAL coords of `best`. Cell size is driven by the
-        // existing `uBvhSize` slider so there's a single "BVH cell" knob. Visible only
-        // when the user toggles "Wireframe" on. Far fewer lines than WireframeGeometry,
-        // and actually cell-shaped rather than a fan of triangle edges.
+        // ── MeshBVH-style per-triangle wireframe overlay ─────────────────────────────
+        // The user pointed us at the canonical "Three.js透视效果, web3d开源项目MeshBVH"
+        // look: dense green wireframe over the textured model. We build it the same way
+        // MeshBVH demos do — `WireframeGeometry(geometry)` exposed as additive LineSegments.
         if (wireLines) {
           best.parent.remove(wireLines);
           wireLines.geometry?.dispose();
           wireLines.material?.dispose();
           wireLines = null;
         }
-        const cellSize = Math.max(u.uBvhSize.value, 0.005);
-        const gridVerts = buildAabbGrid(aabbMin, aabbMax, cellSize, 64); // ≤64 cells per axis
-        const gridGeom = new THREE.BufferGeometry();
-        gridGeom.setAttribute('position', new THREE.BufferAttribute(gridVerts, 3));
-        const gridMat = new THREE.LineBasicMaterial({ color: 0xa8e6ff, transparent: true, opacity: 0.5 });
-        wireLines = new THREE.LineSegments(gridGeom, gridMat);
+        const wire = new THREE.WireframeGeometry(geometry);
+        const wmat = new THREE.LineBasicMaterial({
+          color: 0x6effa8,            // MeshBVH canonical mint-green
+          transparent: true,
+          opacity: 0.45,
+          depthWrite: false,           // so the textured faces stay readable behind the lines
+          blending: THREE.AdditiveBlending,
+        });
+        wireLines = new THREE.LineSegments(wire, wmat);
         wireLines.visible = state.wireframe;
         best.parent.add(wireLines);
         wireLines.position.copy(best.position);
@@ -756,22 +758,9 @@ function bindSlider(id, uniform, lbl) {
     u[uniform].value = v;
     $(lbl).textContent = fmt(v);
     updateSlicePlanePositions();
-    // rebuilding the grid is only relevant for the BVH-cell-size slider
-    if (uniform === 'uBvhSize' && wireLines) rebuildGrid();
+    // BVH-cell-size slider is now decorative (the wireframe is per-triangle
+    // regardless of cell size). Kept in the UI for parity with MeshBVH controls.
   });
-}
-
-// Regenerate the AABB grid overlay in place with the current cell size.
-// Disposes old attribute and builds a fresh BufferGeometry; cheap because the
-// line count is small (capped) and we're only rebuilding on slider input.
-function rebuildGrid() {
-  if (!wireLines) return;
-  const cs = Math.max(u.uBvhSize.value, 0.005);
-  const verts = buildAabbGrid(aabbMin, aabbMax, cs, 64);
-  wireLines.geometry.dispose();
-  const fresh = new THREE.BufferGeometry();
-  fresh.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-  wireLines.geometry = fresh;
 }
 bindSlider('sliceX', 'uSliceX', 'lbl-x');
 bindSlider('sliceY', 'uSliceY', 'lbl-y');
