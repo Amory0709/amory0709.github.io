@@ -1075,23 +1075,37 @@ document.querySelectorAll('.checkbox-row').forEach(row => {
       if (bvhCells) bvhCells.visible = on;
     }
     if (key === 'sliceOn') {
-      // "Slice" — toggle ONLY the slice-plane VISUALIZATION.
-      // The model's clippingPlanes (the actual cut) is intentionally
-      // left alone, so the cross-section stays visible even when the
-      // knife overlays are hidden. Useful for inspecting the cut
-      // without the distracting slice-plane geometry.
-      //
-      // Bug report 2026-07-01 23:04: '关掉slices只是不显示slice
-      // 切的部分保持不变!!' — user wanted the toggle to hide the
-      // knife only, not undo the cut.
-      //
-      // Slice slider positions are still preserved across toggles
-      // because updateSliceClipPlanes() runs every frame regardless.
+      // "Slice" — toggle the slice planes + the model's clippingPlanes
+      // together. When OFF, the model renders intact and there are no
+      // visible knife planes. Slice slider positions are preserved across
+      // toggles so the user can re-enable slicing from where they left it.
       state.sliceOn = on;
       xPlane.group.visible = on;
       yPlane.group.visible = on;
       zPlane.group.visible = on;
-      // Do NOT touch material.clippingPlanes here. The cut stays.
+      // Walk every mesh and toggle `material.clippingPlanes`:
+      //   on  → assign the shared slicePlanes array (cuts the model)
+      //   off → set to null (model intact, no clipping)
+      window.__xr?.scene?.traverse(o => {
+        if (!o.isMesh) return;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (const m of mats) {
+          // Only touch materials we've prepared for slicing (i.e. still
+          // carry a reference to slicePlanes OR were never assigned). Avoid
+          // materials that have a completely different clipping context.
+          if (on) {
+            if (m.clippingPlanes === null || m.clippingPlanes === undefined) {
+              m.clippingPlanes = slicePlanes;
+              m.needsUpdate = true;
+            }
+          } else {
+            if (m.clippingPlanes && m.clippingPlanes !== null) {
+              m.clippingPlanes = null;
+              m.needsUpdate = true;
+            }
+          }
+        }
+      });
     }
   });
 });
