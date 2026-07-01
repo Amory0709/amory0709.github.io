@@ -271,7 +271,7 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x06080c, 24, 90);
 window.__xr.scene = scene;
 
-const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 5000);
 camera.position.set(14, 9, 18);
 window.__xr.camera = camera;
 
