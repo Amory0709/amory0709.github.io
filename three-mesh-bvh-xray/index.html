@@ -192,23 +192,19 @@
 </div>
 
 <div id="panel">
-  <div class="title">Params <span class="hint">slice · opacity · wire</span></div>
+  <div class="title">Params <span class="hint">slice · bvh</span></div>
 
   <div class="ctl">
-    <label>Slice X <span class="v" id="lbl-x">1.00</span></label>
-    <input type="range" id="sliceX" min="0" max="1" step="0.001" value="1.00">
+    <label>Slice X <span class="v" id="lbl-x">0.00</span></label>
+    <input type="range" id="sliceX" min="0" max="1" step="0.001" value="0.00">
   </div>
   <div class="ctl">
-    <label>Slice Y <span class="v" id="lbl-y">1.00</span></label>
-    <input type="range" id="sliceY" min="0" max="1" step="0.001" value="1.00">
+    <label>Slice Y <span class="v" id="lbl-y">0.00</span></label>
+    <input type="range" id="sliceY" min="0" max="1" step="0.001" value="0.00">
   </div>
   <div class="ctl">
-    <label>Slice Z <span class="v" id="lbl-z">1.00</span></label>
-    <input type="range" id="sliceZ" min="0" max="1" step="0.001" value="1.00">
-  </div>
-  <div class="ctl">
-    <label>Model Opacity <span class="v" id="lbl-opacity">1.00</span></label>
-    <input type="range" id="opacity" min="0" max="1" step="0.01" value="1.00">
+    <label>Slice Z <span class="v" id="lbl-z">0.00</span></label>
+    <input type="range" id="sliceZ" min="0" max="1" step="0.001" value="0.00">
   </div>
   <div class="ctl">
     <label>Bvh Size <span class="v" id="lbl-bvh">0.05</span></label>
@@ -225,10 +221,6 @@
   </div>
   <div class="checkbox-row on" data-key="bvhDebug">
     <span>BVH Debug</span>
-    <span class="toggle"></span>
-  </div>
-  <div class="checkbox-row on" data-key="wireframe">
-    <span>Wireframe</span>
     <span class="toggle"></span>
   </div>
 
@@ -277,7 +269,7 @@ renderer.setClearColor(0x1a2030, 1);
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'cleanup-v3';
+const __BUILD_COMMIT = 'cleanup-v4';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, __build: __BUILD_COMMIT };
 
@@ -331,7 +323,9 @@ gltfLoader.setDRACOLoader(dracoLoader);
 gltfLoader.setKTX2Loader(ktx2Loader);
 
 // === State (declared before loadManager so callbacks can mutate wireframe, etc.) ===
-const state = { rotate: false, bvhDebug: true, wireframe: true };
+const state = { rotate: false, bvhDebug: true };
+// (wireframe toggle and opacity slider removed — model uses solid PBR materials
+// and clippingPlanes; alpha+flicker was ugly and asked to be removed.)
 let pagoda = null;
 let bvhCells = null;          // LineSegments mesh of all BVH leaf-cell boxes
 let bvhRoot = null;           // root MeshBVH instance for the active best mesh
@@ -899,22 +893,42 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         //
         // The Plane objects themselves live in WORLD coords (per THREE.js docs), and
         // every slice-slider change updates their constants via updateSliceClipPlanes().
-        const origMat = best.material;
-        if (origMat) {
-          // FrontSide (default) so clipped faces disappear cleanly. If we
-          // kept DoubleSide the back faces of the model would still draw
-          // through the slice plane, giving the "ghost shell" look.
-          origMat.clippingPlanes = slicePlanes;
-          origMat.side = THREE.FrontSide;
-          // Mark the material as needing recompilation: this is the bit that
-          // actually wires clipping into the material's shader. Without
-          // needsUpdate the renderer keeps the previous (un-clipping) shader.
-          origMat.needsUpdate = true;
-          best.material = origMat;
-          targetMat = origMat;     // kept for console introspection; not used for shader logic
-        }
+        //
+        // *** Fix for "tokyo slice doesn't cut": ***
+        // Earlier we only assigned `origMat.clippingPlanes = slicePlanes` on the
+        // single DENSEST mesh (`best`). For LittlestTokyo that's some random
+        // building near the centre; every other sub-mesh stayed un-clipped, so
+        // sliding X to 0 only clipped one building instead of the whole city.
+        //
+        // Fix: walk every Mesh in the pagoda, find each unique material, set
+        // clippingPlanes on it, mark needsUpdate. Materials are often shared
+        // across meshes in glTF files (one StandardMaterial wraps many meshes),
+        // so we de-dup by material identity before mutating.
+        const seenMats = new Set();
+        pagoda.traverse(obj => {
+          if (!obj.isMesh || !obj.material) return;
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          for (const m of mats) {
+            if (seenMats.has(m)) continue;
+            seenMats.add(m);
+            m.clippingPlanes = slicePlanes;
+            // FrontSide (default) so clipped faces disappear cleanly.
+            // DoubleSide would render back faces through the cut plane and
+            // produce the "ghost shell" look.
+            m.side = THREE.FrontSide;
+            // Mark as needing recompilation: this is the bit that actually
+            // wires the clippingPlanes uniform into the material's shader.
+            // Without needsUpdate the renderer keeps the previous shader.
+            m.needsUpdate = true;
+          }
+        });
+        console.info('[xray] FrontSide+clippingPlanes applied to', seenMats.size, 'unique materials');
+        // Keep a reference to `best`'s material purely for console introspection
+        // (window.__xr.targetMat). The actual slicing logic uses ALL materials
+        // via the seenMats traversal above.
+        targetMat = best.material || null;
         window.__xr.best = best;
-        window.__xr.targetMat = origMat;
+        window.__xr.targetMat = targetMat;
         updateSliceClipPlanes();   // recompute now that aabbMin/Max are populated
 
         // ── MeshBVH cell-box visualization ─────────────────────────────────
@@ -928,14 +942,21 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         window.__xr.wireLines = bvhCells;        // keep console introspection hook
       }
 
-      // Reset slice sliders to 1.0 so user sees full model first
+      // Reset slice sliders to 0.0 so the user starts with the model fully
+      // cut away and can drag each slider up to reveal that axis. (Per
+      // "slice 默认值都是0" — earlier we reset to 1.0 which meant the slider
+      // did nothing visible until the user actively dragged it down.)
       ['sliceX', 'sliceY', 'sliceZ'].forEach(id => {
         const el = document.getElementById(id);
-        el.value = 1.0;
+        el.value = 0.0;
         const uniform = 'uSlice' + id[5];
-        u[uniform].value = 1.0;
-        document.getElementById('lbl-' + id.charAt(5).toLowerCase()).textContent = '1.00';
+        u[uniform].value = 0.0;
+        document.getElementById('lbl-' + id.charAt(5).toLowerCase()).textContent = '0.00';
       });
+      // Apply to clipPlanes immediately so the initial frame is correct
+      // (not just after the first slider drag).
+      updateSlicePlanePositions();
+      updateSliceClipPlanes();
 
       // Recount total tris across the whole scene for the stats badge
       let total = 0;
@@ -1002,7 +1023,7 @@ function bindSlider(id, uniform, lbl) {
 bindSlider('sliceX', 'uSliceX', 'lbl-x');
 bindSlider('sliceY', 'uSliceY', 'lbl-y');
 bindSlider('sliceZ', 'uSliceZ', 'lbl-z');
-bindSlider('opacity', 'uOpacity', 'lbl-opacity');
+// (opacity slider removed — model kept its solid PBR look; alpha was confusing.)
 // bvhSize drives the MeshBVH leaf-tris count. Debounced rebuild so dragging
 // the slider isn't a per-tick BVH rebuild cost.
 let _bvhRebuildTimer = null;
@@ -1028,11 +1049,15 @@ document.querySelectorAll('.checkbox-row').forEach(row => {
     if (key === 'rotate') state.rotate = on;
     if (key === 'bvhDebug') {
       state.bvhDebug = on;
-      u.uBvhDebug.value = on ? 1 : 0;
-      xPlane.visible = on; yPlane.visible = on; zPlane.visible = on;
+      // Hide BOTH: visible slice planes AND the green BVH cell grid.
+      // (Earlier this only hid the slice planes, leaving the green grid
+      //  visible — that was the "toggle BVH debug doesn't turn off 平面"
+      //  bug. Now both follow the same toggle.)
+      xPlane.visible = on;
+      yPlane.visible = on;
+      zPlane.visible = on;
+      if (bvhCells) bvhCells.visible = on;
     }
-    // wireframe toggle controls the per-triangle mesh wireframe overlay
-    // (added by drawMeshWireframeOverlay below), NOT the BVH cell grid.
   });
 });
 
