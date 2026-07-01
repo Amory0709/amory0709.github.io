@@ -581,6 +581,7 @@ function clearScene() {
 }
 
 function loadGLB(source, isFile = false, revokeAfterLoad = false) {
+  console.log('[loadGLB] called', source);  // DEBUG
   // If a load is in flight, silently ignore rather than queue — clicks fire fast.
   if (loading) {
     console.warn('[loadGLB] already loading, ignoring click');
