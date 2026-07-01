@@ -269,9 +269,14 @@ renderer.setClearColor(0x1a2030, 1);
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'cleanup-v4';
+const __BUILD_COMMIT = 'cleanup-v4-debug';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, __build: __BUILD_COMMIT };
+// Expose slice-plane groups for headless verification (toggle handlers read
+// the module-scope xPlane/yPlane/zPlane refs directly; this is for inspection).
+window.__xr.xPlaneGroup = null;
+window.__xr.yPlaneGroup = null;
+window.__xr.zPlaneGroup = null;
 
 const scene = new THREE.Scene();
 // Start without fog — fog far=90 is too tight for the auto camera framing on
@@ -670,11 +675,14 @@ function attachSliceMesh(slicePair, sizeX, sizeY) {
 const xPlane = makeSlicePair(0xffd86b); // amber = X axis
 xPlane.group.rotation.set(0, Math.PI / 2, 0);
 scene.add(xPlane.group);
+window.__xr.xPlaneGroup = xPlane.group;
 const yPlane = makeSlicePair(0x6fe3ff); // cyan = Y axis
 yPlane.group.rotation.set(-Math.PI / 2, 0, 0);
 scene.add(yPlane.group);
+window.__xr.yPlaneGroup = yPlane.group;
 const zPlane = makeSlicePair(0xff6bd6); // magenta = Z axis
 scene.add(zPlane.group);
+window.__xr.zPlaneGroup = zPlane.group;
 
 // Three persistent clip planes used to "cut" the model along x/y/z slice sliders.
 //   THREE.Plane equation: normal · p + constant ≤ 0  keeps the vertex.
@@ -1057,6 +1065,11 @@ document.querySelectorAll('.checkbox-row').forEach(row => {
       yPlane.visible = on;
       zPlane.visible = on;
       if (bvhCells) bvhCells.visible = on;
+      console.info('[xray] bvhDebug toggled', on,
+        'xPlane.visible=', xPlane.visible,
+        'yPlane.visible=', yPlane.visible,
+        'zPlane.visible=', zPlane.visible,
+        'bvhCells.visible=', bvhCells?.visible);
     }
   });
 });
