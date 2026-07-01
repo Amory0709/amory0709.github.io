@@ -272,7 +272,7 @@ renderer.setClearColor(0x06080c, 1);
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = '2e7b571';
+const __BUILD_COMMIT = 'occluder-fix';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, __build: __BUILD_COMMIT };
 
@@ -482,9 +482,18 @@ function buildAabbGrid(min, max, cellSize, maxCellsPerAxis = 64) {
 // buffer so a plane that is occluded by the model looks OCCLUDED, not
 // see-through — this preserves proper depth perception on Barn.
 function makeSliceFillMat(color) {
+  // Invisible "occluder" plane: writes color = nothing, but DOES write depth,
+  // so any model triangle that happens to be behind the slice plane will
+  // test against this plane's depth value — preserving proper depth
+  // perception instead of bleeding through. The visible plane shape is
+  // the outline Line that gets attached in attachSliceMesh.
   return new THREE.MeshBasicMaterial({
-    color, transparent: true, opacity: 0.18,
-    side: THREE.DoubleSide, depthWrite: false,
+    color: 0x000000,
+    transparent: true, opacity: 0.0,
+    side: THREE.DoubleSide,
+    depthWrite: true,
+    depthTest: true,
+    colorWrite: false,                // out color stays empty → plane is invisible
   });
 }
 function makeSliceEdgeMat(color) {
@@ -523,11 +532,19 @@ function attachSliceMesh(slicePair, sizeX, sizeY) {
     const c = g.children.pop();
     if (c.geometry) c.geometry.dispose();
   }
-  const fill = new THREE.Mesh(new THREE.PlaneGeometry(sizeX, sizeY), makeSliceFillMat(slicePair.edgeColor));
-  g.add(fill);
+  // The fill (a translucent Mesh quad) was the source of the
+  // "ghosted through" depth-perception bug on Barn: it drew with
+  // depthWrite:false and let model triangles bleed straight through.
+  // We replace it with an invisible occluder: writes depth but no
+  // color, so the slice plane physically occludes model fragments
+  // that are behind it (without producing any visual fill of its own).
+  const occluder = new THREE.Mesh(new THREE.PlaneGeometry(sizeX, sizeY), makeSliceFillMat(slicePair.edgeColor));
+  occluder.renderOrder = -1;            // occluder draws BEFORE the model
+  g.add(occluder);
   const edge = new THREE.Line(buildSquareEdges(sizeX, sizeY), makeSliceEdgeMat(slicePair.edgeColor));
+  edge.renderOrder = 2;                 // edge draws AFTER the model so it's always visible
   g.add(edge);
-  slicePair.fill = fill;
+  slicePair.fill = occluder;
   slicePair.edge = edge;
 }
 
