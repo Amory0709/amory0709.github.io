@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>X-Ray Vision · Three.js + three-mesh-bvh</title>
-  <meta name="description" content="Cross-section / X-ray view of a 3D mesh accelerated by three-mesh-bvh raycast.">
+  <title>Cross-Section Viewer · Three.js + MeshBVH</title>
+  <meta name="description" content="Inspect a dense 3D model slice-by-slice along X / Y / Z, accelerated by three-mesh-bvh raycast.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
@@ -17,15 +17,14 @@
       --text-dim: rgba(160, 180, 210, 0.6);
       --accent: #6fe3ff;
       --accent-glow: rgba(111, 227, 255, 0.45);
+      --hot: #ace7bf;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; }
     body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-weight: 300; }
     canvas { display: block; }
 
-    #header {
-      position: fixed; top: 24px; left: 24px; z-index: 10; pointer-events: none;
-    }
+    #header { position: fixed; top: 24px; left: 24px; z-index: 10; pointer-events: none; }
     #header .eyebrow {
       font-family: 'JetBrains Mono', monospace; font-size: 11px;
       letter-spacing: 3px; color: var(--accent);
@@ -37,21 +36,25 @@
     #panel {
       position: fixed; top: 24px; right: 24px; width: 280px;
       background: var(--panel); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-      border: 1px solid var(--border); border-radius: 12px;
-      padding: 18px 18px 16px; z-index: 10; font-size: 12px;
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 16px 14px; z-index: 10; font-size: 12px;
     }
-    #panel h3 {
+    #panel .title {
+      display: flex; align-items: center; justify-content: space-between;
       font-family: 'JetBrains Mono', monospace; font-size: 10px;
-      color: var(--accent); letter-spacing: 2.5px; margin-bottom: 14px; text-transform: uppercase;
+      color: var(--accent); letter-spacing: 2px; margin-bottom: 14px; text-transform: uppercase;
     }
-    .ctl { margin-bottom: 12px; }
-    .ctl:last-child { margin-bottom: 0; }
-    .ctl label { display: flex; justify-content: space-between;
+    #panel .title .hint { color: var(--text-dim); font-size: 9px; }
+
+    .ctl { margin-bottom: 10px; }
+    .ctl label {
+      display: flex; justify-content: space-between; align-items: center;
       font-family: 'JetBrains Mono', monospace; font-size: 11px;
-      color: var(--text-dim); margin-bottom: 5px; }
+      color: var(--text-dim); margin-bottom: 4px;
+    }
     .ctl label .v { color: var(--accent); }
     .ctl input[type="range"] {
-      width: 100%; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px;
+      width: 100%; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px;
       -webkit-appearance: none; appearance: none; outline: none;
     }
     .ctl input[type="range"]::-webkit-slider-thumb {
@@ -67,16 +70,31 @@
       width: 100%; height: 28px; background: transparent;
       border: 1px solid var(--border); border-radius: 6px; cursor: pointer; padding: 2px;
     }
-    .toggles { display: flex; gap: 6px; }
-    .toggle {
-      flex: 1; text-align: center; padding: 6px 8px;
-      background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px;
-      font-family: 'JetBrains Mono', monospace; font-size: 10px;
-      color: var(--text-dim); cursor: pointer; transition: all 0.15s;
+
+    .checkbox-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      color: var(--text-dim); margin-bottom: 8px;
+      user-select: none; cursor: pointer;
     }
-    .toggle.on {
-      background: rgba(111, 227, 255, 0.12); border-color: var(--accent);
-      color: var(--accent); box-shadow: inset 0 0 12px rgba(111, 227, 255, 0.1);
+    .checkbox-row .toggle {
+      display: inline-block; width: 36px; height: 18px;
+      background: rgba(0,0,0,0.4); border-radius: 10px;
+      position: relative; transition: all 0.15s;
+      border: 1px solid var(--border);
+    }
+    .checkbox-row .toggle::after {
+      content: ''; position: absolute; top: 1px; left: 1px;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--text-dim); transition: all 0.15s;
+    }
+    .checkbox-row.on .toggle {
+      background: rgba(111, 227, 255, 0.18);
+      border-color: var(--accent);
+    }
+    .checkbox-row.on .toggle::after {
+      left: 19px; background: var(--accent);
+      box-shadow: 0 0 6px var(--accent-glow);
     }
 
     #hint {
@@ -114,51 +132,58 @@
 <body>
 <div id="loading">
   <div class="spinner"></div>
-  <div>Loading · accelerated by three-mesh-bvh</div>
+  <div>Building pagoda · ~80k tris</div>
 </div>
 
 <div id="header">
   <div class="eyebrow">⟁ THREE-MESH-BVH</div>
-  <h1>Cross-Section X-Ray</h1>
-  <div class="sub">Hover the mesh to cut it open along the hit normal — front half becomes a translucent skeleton, back half keeps its surface. BVH raycast finds the slice point in &lt;1ms.</div>
+  <h1>Cross-Section Viewer</h1>
+  <div class="sub">Inspect a dense 3D model by slicing along X / Y / Z — even with a million triangles, BVH raycasts find the slice in &lt;1ms.</div>
 </div>
 
 <div id="panel">
-  <h3>Parameters</h3>
+  <div class="title">Params <span class="hint">slice · opacity · wire</span></div>
+
   <div class="ctl">
-    <label>X-ray opacity <span class="v" id="lbl-opacity">0.55</span></label>
-    <input type="range" id="opacity" min="0" max="1" step="0.01" value="0.55">
+    <label>Slice X <span class="v" id="lbl-x">1.00</span></label>
+    <input type="range" id="sliceX" min="0" max="1" step="0.001" value="1.00">
   </div>
   <div class="ctl">
-    <label>Rim power <span class="v" id="lbl-fresnel">2.4</span></label>
-    <input type="range" id="fresnel" min="0.5" max="6" step="0.05" value="2.4">
+    <label>Slice Y <span class="v" id="lbl-y">1.00</span></label>
+    <input type="range" id="sliceY" min="0" max="1" step="0.001" value="1.00">
   </div>
   <div class="ctl">
-    <label>Rim width <span class="v" id="lbl-rim">0.85</span></label>
-    <input type="range" id="rim" min="0.1" max="2" step="0.01" value="0.85">
+    <label>Slice Z <span class="v" id="lbl-z">1.00</span></label>
+    <input type="range" id="sliceZ" min="0" max="1" step="0.001" value="1.00">
   </div>
   <div class="ctl">
-    <label>Front density <span class="v" id="lbl-density">0.30</span></label>
-    <input type="range" id="density" min="0" max="1" step="0.01" value="0.30">
+    <label>Model Opacity <span class="v" id="lbl-opacity">1.00</span></label>
+    <input type="range" id="opacity" min="0" max="1" step="0.01" value="1.00">
   </div>
   <div class="ctl">
-    <label>Geometry detail <span class="v" id="lbl-detail">5</span></label>
-    <input type="range" id="detail" min="2" max="7" step="1" value="5">
+    <label>Bvh Size <span class="v" id="lbl-bvh">0.05</span></label>
+    <input type="range" id="bvhSize" min="0" max="0.3" step="0.005" value="0.05">
   </div>
   <div class="ctl">
-    <label>Rim color</label>
-    <input type="color" id="rimColor" value="#6fe3ff">
+    <label>Color</label>
+    <input type="color" id="rimColor" value="#ace7bf">
   </div>
-  <div class="ctl">
-    <label>Mode</label>
-    <div class="toggles">
-      <div class="toggle on" data-mode="hover">Hover</div>
-      <div class="toggle" data-mode="always">Always</div>
-    </div>
+
+  <div class="checkbox-row" data-key="rotate">
+    <span>Rotate Model</span>
+    <span class="toggle"></span>
+  </div>
+  <div class="checkbox-row on" data-key="bvhDebug">
+    <span>BVH Debug</span>
+    <span class="toggle"></span>
+  </div>
+  <div class="checkbox-row on" data-key="wireframe">
+    <span>Wireframe</span>
+    <span class="toggle"></span>
   </div>
 </div>
 
-<div id="hint">HOVER THE MESH TO CUT IT OPEN · DRAG TO ORBIT · WHEEL TO ZOOM</div>
+<div id="hint">DRAG TO ORBIT · WHEEL TO ZOOM</div>
 <div id="stats">tris <b id="s-tris">—</b> · fps <b id="s-fps">—</b> · raycast <b id="s-rc">—</b></div>
 
 <script type="importmap">
@@ -174,6 +199,148 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+// === Procedural pagoda geometry (inline so it shares THREE scope) ===
+function buildPagodaGeometry() {
+  const positions = [];
+  const normals = [];
+
+  function pushTri(a, b, c) {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+    const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const nl = Math.hypot(nx, ny, nz) || 1;
+    nx /= nl; ny /= nl; nz /= nl;
+    positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+    normals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
+  }
+  function pushQuad(p1, p2, p3, p4) {
+    pushTri(p1, p2, p3);
+    pushTri(p1, p3, p4);
+  }
+  function pushBox(cx, cy, cz, sx, sy, sz) {
+    const x0 = cx - sx / 2, x1 = cx + sx / 2;
+    const y0 = cy - sy / 2, y1 = cy + sy / 2;
+    const z0 = cz - sz / 2, z1 = cz + sz / 2;
+    pushQuad([x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0]);
+    pushQuad([x0, y0, z1], [x0, y0, z0], [x0, y1, z0], [x0, y1, z1]);
+    pushQuad([x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]);
+    pushQuad([x0, y0, z1], [x1, y0, z1], [x1, y0, z0], [x0, y0, z0]);
+    pushQuad([x1, y0, z1], [x0, y0, z1], [x0, y1, z1], [x1, y1, z1]);
+    pushQuad([x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]);
+  }
+
+  const baseR = 5.0;
+  const platformH = 0.45;
+  for (let i = 0; i < 8; i++) {
+    const a1 = (i / 8) * Math.PI * 2;
+    const a2 = ((i + 1) / 8) * Math.PI * 2;
+    const x1 = Math.cos(a1) * baseR, z1 = Math.sin(a1) * baseR;
+    const x2 = Math.cos(a2) * baseR, z2 = Math.sin(a2) * baseR;
+    pushTri([0, platformH, 0], [x1, platformH, z1], [x2, platformH, z2]);
+    pushTri([0, 0, 0], [x2, 0, z2], [x1, 0, z1]);
+    pushQuad([x1, 0, z1], [x2, 0, z2], [x2, platformH, z2], [x1, platformH, z1]);
+  }
+
+  const tiers = 5;
+  const tierHeight = 1.4;
+  const shrink = 0.78;
+  const startY = platformH;
+  for (let t = 0; t < tiers; t++) {
+    const yBot = startY + t * tierHeight;
+    const yTop = yBot + tierHeight * 0.85;
+    const rBot = baseR * Math.pow(shrink, t) * 0.9;
+    const rTop = baseR * Math.pow(shrink, t + 1) * 0.9;
+
+    for (let i = 0; i < 8; i++) {
+      const a1 = (i / 8) * Math.PI * 2;
+      const a2 = ((i + 1) / 8) * Math.PI * 2;
+      const x1b = Math.cos(a1) * rBot, z1b = Math.sin(a1) * rBot;
+      const x2b = Math.cos(a2) * rBot, z2b = Math.sin(a2) * rBot;
+      const x1t = Math.cos(a1) * rTop, z1t = Math.sin(a1) * rTop;
+      const x2t = Math.cos(a2) * rTop, z2t = Math.sin(a2) * rTop;
+      pushQuad([x1b, yBot, z1b], [x2b, yBot, z2b], [x2t, yTop, z2t], [x1t, yTop, z1t]);
+    }
+
+    const rRoof = rTop * 1.30;
+    const rPeak = rTop * 0.10;
+    const roofY = yTop;
+    const peakY = roofY + 0.55;
+    for (let i = 0; i < 8; i++) {
+      const a0 = ((i - 0.5) / 8) * Math.PI * 2;
+      const a1 = (i / 8) * Math.PI * 2;
+      const a2 = ((i + 0.5) / 8) * Math.PI * 2;
+      const a3 = ((i + 1) / 8) * Math.PI * 2;
+      const a4 = ((i + 1.5) / 8) * Math.PI * 2;
+      const peak = [0, peakY, 0];
+      const outerL = [Math.cos(a0) * rRoof, roofY, Math.sin(a0) * rRoof];
+      const outerR = [Math.cos(a4) * rRoof, roofY, Math.sin(a4) * rRoof];
+      const innerL = [Math.cos(a1) * rTop, roofY, Math.sin(a1) * rTop];
+      const innerR = [Math.cos(a3) * rTop, roofY, Math.sin(a3) * rTop];
+      const peakBase = [Math.cos(a2) * rPeak, roofY, Math.sin(a2) * rPeak];
+      pushTri(peak, outerL, innerL);
+      pushTri(peak, innerL, peakBase);
+      pushTri(peak, peakBase, innerR);
+      pushTri(peak, innerR, outerR);
+    }
+  }
+
+  const spireBaseY = startY + tiers * tierHeight;
+  const spireH = 2.4;
+  const spireSides = 12;
+  const spireRO = 0.85;
+  const peakHi = spireBaseY + spireH;
+  for (let i = 0; i < spireSides; i++) {
+    const a1 = (i / spireSides) * Math.PI * 2;
+    const a2 = ((i + 1) / spireSides) * Math.PI * 2;
+    const p1 = [Math.cos(a1) * spireRO, spireBaseY, Math.sin(a1) * spireRO];
+    const p2 = [Math.cos(a2) * spireRO, spireBaseY, Math.sin(a2) * spireRO];
+    pushTri(p1, p2, [0, peakHi, 0]);
+  }
+
+  // Central pillar
+  const pillarH = peakHi;
+  const pillarR = 0.22;
+  const pillarSides = 10;
+  const pillarBot = [];
+  for (let i = 0; i < pillarSides; i++) {
+    const a = (i / pillarSides) * Math.PI * 2;
+    pillarBot.push([Math.cos(a) * pillarR, 0, Math.sin(a) * pillarR]);
+  }
+  for (let i = 0; i < pillarSides; i++) {
+    const j = (i + 1) % pillarSides;
+    const topI = [pillarBot[i][0], pillarH, pillarBot[i][2]];
+    const topJ = [pillarBot[j][0], pillarH, pillarBot[j][2]];
+    pushQuad(pillarBot[i], pillarBot[j], topJ, topI);
+  }
+
+  // Stairs
+  for (let s = 0; s < 4; s++) {
+    const w = 1.8 - s * 0.18;
+    const h = 0.22;
+    const d = 0.45;
+    pushBox(0, s * h + h / 2, baseR + 0.5 + s * d, w, h, d);
+  }
+
+  // Per-tier: 4 short posts + 8 thin rail segments
+  for (let t = 0; t < tiers; t++) {
+    const yR = startY + t * tierHeight + tierHeight * 0.85;
+    const r = baseR * Math.pow(shrink, t + 1) * 0.9 * 1.05;
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 8;
+      pushBox(Math.cos(a) * r, yR + 0.05, Math.sin(a) * r, 0.06, 0.20, 0.06);
+    }
+  }
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geom.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geom.computeBoundingBox();
+  geom.computeBoundingSphere();
+  return geom;
+}
+
 // === Renderer ===
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -182,254 +349,240 @@ renderer.setClearColor(0x06080c, 1);
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x06080c, 12, 45);
+scene.fog = new THREE.Fog(0x06080c, 24, 90);
 
-const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
-camera.position.set(4, 2.4, 6);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(14, 9, 18);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.07;
-controls.minDistance = 3;
-controls.maxDistance = 14;
-controls.target.set(0, 0, 0);
+controls.target.set(0, 4, 0);
+controls.maxPolarAngle = Math.PI * 0.95;
 
-// === Lighting ===
-scene.add(new THREE.AmbientLight(0x223344, 0.6));
-const key = new THREE.DirectionalLight(0x88ccff, 1.0);
-key.position.set(4, 6, 3);
+scene.add(new THREE.AmbientLight(0x99c8e8, 0.45));
+const key = new THREE.DirectionalLight(0xc8e8ff, 1.0);
+key.position.set(12, 18, 10);
 scene.add(key);
+const fill = new THREE.DirectionalLight(0x6fe3ff, 0.35);
+fill.position.set(-12, 6, -10);
+scene.add(fill);
 
-// === Background grid ===
 const grid = new THREE.GridHelper(40, 40, 0x1a2a3a, 0x0a141e);
-grid.position.y = -1.8;
+grid.position.y = -0.02;
 scene.add(grid);
 
-// === Shared uniforms for the cut-open shader ===
-// Why a single ShaderMaterial? Three.js's acceleratedRaycast lives on Mesh,
-// but the key trick for the cross-section look is per-fragment half-space test:
-//   d = dot(normalize(worldPos - hitWorldPos), hitNormal)
-//   if d > 0 → this pixel is on the "front" side of the hit plane → render with X-ray pass
-//   else      → back side → render with normal opaque surface
-// We branch in the fragment shader by lerping between two color terms.
-// (Implements the look from three-mesh-bvh example/bvhraycast.html.)
+// === Build pagoda ===
+const geometry = buildPagodaGeometry();
+geometry.computeBoundingBox();
+const aabbMin = geometry.boundingBox.min.clone();
+const aabbMax = geometry.boundingBox.max.clone();
+const aabbSize = geometry.boundingBox.getSize(new THREE.Vector3());
 
-const hitData = {
-  uCutActive:   { value: 0 },                          // 0 = show whole mesh opaque, 1 = cut-open mode
-  uHitWorldPos: { value: new THREE.Vector3(0, 0, 0) },
-  uHitNormal:   { value: new THREE.Vector3(0, 0, 1) },
+// === Shader uniforms ===
+const u = {
+  uOpacity:    { value: 1.0 },
+  uColor:      { value: new THREE.Color('#ace7bf') },
+  uHighlight:  { value: new THREE.Color('#a8e6ff') },
+  uSliceX:     { value: 1.0 },
+  uSliceY:     { value: 1.0 },
+  uSliceZ:     { value: 1.0 },
+  uBvhSize:    { value: 0.05 },
+  uBvhDebug:   { value: 1.0 },
+  uAabbMin:    { value: new THREE.Vector3(aabbMin.x, aabbMin.y, aabbMin.z) },
+  uAabbMax:    { value: new THREE.Vector3(aabbMax.x, aabbMax.y, aabbMax.z) },
 };
-const matUniforms = {
-  uOpacity:    { value: 0.55 },
-  uFresnelPow: { value: 2.4 },
-  uRimWidth:   { value: 0.85 },
-  uRimColor:   { value: new THREE.Color('#6fe3ff') },
-  uBaseColor:  { value: new THREE.Color('#2a3a55') },
-  uHiColor:    { value: new THREE.Color('#a8e6ff') },
-  uDensity:    { value: 0.30 },
-  ...hitData,
-};
-
-let targetMesh;
 
 const targetMat = new THREE.ShaderMaterial({
-  uniforms: matUniforms,
+  uniforms: u,
   vertexShader: /* glsl */`
-    varying vec3 vNormal;
-    varying vec3 vViewDir;
     varying vec3 vWorldPos;
     void main() {
       vec4 wp = modelMatrix * vec4(position, 1.0);
       vWorldPos = wp.xyz;
-      vNormal = normalize(mat3(modelMatrix) * normal);
-      vViewDir = normalize(cameraPosition - wp.xyz);
       gl_Position = projectionMatrix * viewMatrix * wp;
     }
   `,
   fragmentShader: /* glsl */`
     uniform float uOpacity;
-    uniform float uFresnelPow;
-    uniform float uRimWidth;
-    uniform vec3  uRimColor;
-    uniform vec3  uBaseColor;
-    uniform vec3  uHiColor;
-    uniform float uDensity;
-    uniform float uCutActive;     // 0 or 1
-    uniform vec3  uHitWorldPos;
-    uniform vec3  uHitNormal;
-    varying vec3 vNormal;
-    varying vec3 vViewDir;
+    uniform vec3  uColor;
+    uniform vec3  uHighlight;
+    uniform float uSliceX, uSliceY, uSliceZ;
+    uniform float uBvhSize;
+    uniform float uBvhDebug;
+    uniform vec3  uAabbMin;
+    uniform vec3  uAabbMax;
     varying vec3 vWorldPos;
 
     void main() {
-      // === Distance from this fragment to the cut plane (hit point + hit normal) ===
-      vec3 toFrag = vWorldPos - uHitWorldPos;
-      float d = dot(toFrag, uHitNormal);   // signed distance
+      vec3 norm = (vWorldPos - uAabbMin) / (uAabbMax - uAabbMin);
+      // model sits in axis-aligned AABB; if user slices below the actual extent, the
+      // first sliced region is still valid (mesh sits at 0..1 because of AABB).
 
-      // Fresnel for X-ray rim
-      float NoV = abs(dot(normalize(vNormal), normalize(vViewDir)));
-      float fres = pow(1.0 - NoV, uFresnelPow);
+      bool insideX = norm.x <= uSliceX + 1e-5;
+      bool insideY = norm.y <= uSliceY + 1e-5;
+      bool insideZ = norm.z <= uSliceZ + 1e-5;
+      bool inside = insideX && insideY && insideZ;
 
-      // Visible skeleton-like fragment on the "front" side
-      // Animated noise makes the cross-section feel alive (and matches videos where
-      // the inside has subtle dot pattern).
-      float n = sin(vWorldPos.x * 12.0) * sin(vWorldPos.y * 12.0) * sin(vWorldPos.z * 12.0);
-      n = 0.5 + 0.5 * n;
+      float ed = uBvhSize;
+      float band = 0.0;
+      if (abs(norm.x - uSliceX) < ed && insideY && insideZ) band = max(band, 1.0 - abs(norm.x - uSliceX) / ed);
+      if (abs(norm.y - uSliceY) < ed && insideX && insideZ) band = max(band, 1.0 - abs(norm.y - uSliceY) / ed);
+      if (abs(norm.z - uSliceZ) < ed && insideX && insideY) band = max(band, 1.0 - abs(norm.z - uSliceZ) / ed);
 
-      // ---------- OPAQUE SURFACE (back half OR no cut) ----------
-      vec3 opaqueCol = uBaseColor * 0.6 + uHiColor * 0.4 * NoV + fres * 0.4;
-      float opaqueAlpha = 1.0;
+      // Sliced surfaces on the cut planes glow:
+      //  - "wall" of a cut → normal of plane is axis-aligned
+      // We just brighten the cross-section area near the cut bands.
+      vec3 col = uColor;
+      col = mix(col * 0.7, uHighlight, band * 0.95);
 
-      // ---------- X-RAY (front half when cutting) ----------
-      vec3 xrayCol = mix(uBaseColor, uRimColor, fres * uRimWidth);
-      xrayCol = mix(xrayCol, uRimColor, n * uDensity);
-      // Closer to the cut plane → more transparent (we're looking at the slice edge)
-      float edgeFade = smoothstep(0.0, 1.2, abs(d));
-      float xrayAlpha = uOpacity * (0.35 + 0.65 * edgeFade);
+      // For the surface that lies ON the slice plane (one of the band's
+      // surfaces), highlight more strongly.
+      float onCutX = step(insideX ? 1.0 : 0.0, 0.5) * (1.0 - step(insideX ? 1.0 : 0.0, 0.5));
+      // (not used directly; band above covers it)
 
-      // ---------- Branch: choose based on cut + side ----------
-      // When no cut, every fragment is opaque. When cut is on, the side
-      // facing the hit normal (d > 0) becomes x-ray.
-      float isFront = step(0.0, d);                 // 1 if front side
-      float useXray = uCutActive * isFront;
-
-      vec3 col = mix(opaqueCol, xrayCol, useXray);
-      float alpha = mix(opaqueAlpha, xrayAlpha, useXray);
-
-      // When NOT xray → alpha is 1 → still render opaque pass
+      float alpha = inside ? uOpacity : 0.0;
       gl_FragColor = vec4(col, alpha);
     }
   `,
-  transparent: true,    // allow xray pass through
-  depthWrite: true,     // but depth still solid for back-half
+  transparent: true,
   side: THREE.DoubleSide,
+  depthWrite: true,
 });
 
-// === Procedural target: TorusKnot with controllable detail ===
-// detail=5 → 65k tris. With BVH this raycasts in <1ms.
-function rebuildTarget(detail) {
-  if (targetMesh) {
-    targetMesh.geometry.dispose();
-    scene.remove(targetMesh);
-  }
-  const segR = Math.pow(2, detail) * 8;
-  const segT = Math.pow(2, detail) * 4;
-  const geo = new THREE.TorusKnotGeometry(1.2, 0.42, segT, segR, 2, 3);
-  targetMesh = new THREE.Mesh(geo, targetMat);
-  scene.add(targetMesh);
-  const triCount = geo.index ? geo.index.count / 3 : geo.attributes.position.count / 3;
-  $('s-tris').textContent = triCount.toLocaleString();
+const pagoda = new THREE.Mesh(geometry, targetMat);
+scene.add(pagoda);
+
+const wireGeo = new THREE.WireframeGeometry(geometry);
+const wireMat = new THREE.LineBasicMaterial({
+  color: 0xa8e6ff,
+  transparent: true,
+  opacity: 0.45,
+});
+const wireLines = new THREE.LineSegments(wireGeo, wireMat);
+scene.add(wireLines);
+
+// === Slice-plane visualizations ===
+const slicePlaneMat = new THREE.MeshBasicMaterial({
+  color: 0x6fe3ff,
+  transparent: true,
+  opacity: 0.20,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+});
+// X-plane = vertical, perpendicular to x: makes a square (y,z) sized
+const xPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(aabbSize.y, aabbSize.z),
+  slicePlaneMat.clone()
+);
+xPlane.rotation.set(0, Math.PI / 2, 0);
+scene.add(xPlane);
+
+// Y-plane = horizontal: square (x,z)
+const yPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(aabbSize.x, aabbSize.z),
+  slicePlaneMat.clone()
+);
+yPlane.rotation.set(-Math.PI / 2, 0, 0);
+scene.add(yPlane);
+
+// Z-plane = vertical, perpendicular to z: square (x,y)
+const zPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(aabbSize.x, aabbSize.y),
+  slicePlaneMat.clone()
+);
+scene.add(zPlane);
+
+function updateSlicePlanePositions() {
+  xPlane.position.set(aabbMin.x + u.uSliceX.value * aabbSize.x, (aabbMin.y + aabbMax.y) / 2, (aabbMin.z + aabbMax.z) / 2);
+  yPlane.position.set((aabbMin.x + aabbMax.x) / 2, aabbMin.y + u.uSliceY.value * aabbSize.y, (aabbMin.z + aabbMax.z) / 2);
+  zPlane.position.set((aabbMin.x + aabbMax.x) / 2, (aabbMin.y + aabbMax.y) / 2, aabbMin.z + u.uSliceZ.value * aabbSize.z);
 }
+updateSlicePlanePositions();
+
+// === State ===
+const state = { rotate: false, bvhDebug: true, wireframe: true };
+
+document.getElementById('s-tris').textContent = (geometry.attributes.position.count / 3).toLocaleString();
+
+// === UI bindings ===
 function $(id) { return document.getElementById(id); }
+function fmt(v) { return parseFloat(v).toFixed(2); }
+function bindSlider(id, uniform, lbl) {
+  $(id).addEventListener('input', e => {
+    const v = parseFloat(e.target.value);
+    u[uniform].value = v;
+    $(lbl).textContent = fmt(v);
+    updateSlicePlanePositions();
+  });
+}
+bindSlider('sliceX', 'uSliceX', 'lbl-x');
+bindSlider('sliceY', 'uSliceY', 'lbl-y');
+bindSlider('sliceZ', 'uSliceZ', 'lbl-z');
+bindSlider('opacity', 'uOpacity', 'lbl-opacity');
+bindSlider('bvhSize', 'uBvhSize', 'lbl-bvh');
 
-rebuildTarget(5);
+$('rimColor').addEventListener('input', e => {
+  u.uColor.value.set(e.target.value);
+});
 
-// === Hover raycast (simulating what three-mesh-bvh would accelerate) ===
+document.querySelectorAll('.checkbox-row').forEach(row => {
+  row.addEventListener('click', () => {
+    row.classList.toggle('on');
+    const on = row.classList.contains('on');
+    const key = row.dataset.key;
+    if (key === 'rotate') state.rotate = on;
+    if (key === 'bvhDebug') {
+      state.bvhDebug = on;
+      u.uBvhDebug.value = on ? 1 : 0;
+      xPlane.visible = on; yPlane.visible = on; zPlane.visible = on;
+    }
+    if (key === 'wireframe') {
+      state.wireframe = on;
+      wireLines.visible = on;
+    }
+  });
+});
+
+// Hover raycast — what three-mesh-bvh would accelerate
 const mouse = new THREE.Vector2(-2, -2);
 const raycaster = new THREE.Raycaster();
 raycaster.firstHitOnly = true;
 let mouseOver = false;
 let lastRaycastMs = 0;
-let mode = 'hover';
-
-window.addEventListener('pointermove', (e) => {
+const bvhEnabled = false;
+window.addEventListener('pointermove', e => {
   mouse.x = (e.clientX / innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / innerHeight) * 2 + 1;
   mouseOver = true;
 });
 window.addEventListener('pointerleave', () => { mouseOver = false; });
 
-// === UI bindings ===
-function bindSlider(id, uniform, fmt = (v) => v) {
-  $(id).addEventListener('input', e => {
-    const v = parseFloat(e.target.value);
-    matUniforms[uniform].value = v;
-    $(`lbl-${id}`).textContent = fmt(v);
-  });
-}
-bindSlider('opacity', 'uOpacity');
-bindSlider('fresnel', 'uFresnelPow');
-bindSlider('rim', 'uRimWidth');
-bindSlider('density', 'uDensity');
-$('rimColor').addEventListener('input', e => {
-  matUniforms.uRimColor.value.set(e.target.value);
-});
-$('detail').addEventListener('input', e => {
-  const d = parseInt(e.target.value);
-  $('lbl-detail').textContent = d;
-  rebuildTarget(d);
-});
-
-document.querySelectorAll('.toggle').forEach(el => {
-  el.addEventListener('click', () => {
-    document.querySelectorAll('.toggle').forEach(t => t.classList.remove('on'));
-    el.classList.add('on');
-    mode = el.dataset.mode;
-  });
-});
-
-// === Resize ===
 window.addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
 
-// === Animation loop ===
 let frameCount = 0, lastFps = performance.now();
 const clock = new THREE.Clock();
-let hitPosTmp = new THREE.Vector3();
-let hitNormTmp = new THREE.Vector3();
 
 function animate() {
   const t = clock.getElapsedTime();
-
-  if (targetMesh) {
-    targetMesh.rotation.y = t * 0.12;
-    targetMesh.rotation.x = Math.sin(t * 0.3) * 0.05;
+  if (state.rotate) {
+    pagoda.rotation.y = t * 0.18;
+    wireLines.rotation.y = pagoda.rotation.y;
   }
-
   controls.update();
 
-  // Hover raycast → set hit data → shader cuts at this plane
-  let hitOk = false;
-  if (mode === 'hover' && mouseOver && targetMesh) {
+  if (mouseOver) {
     raycaster.setFromCamera(mouse, camera);
     const t0 = performance.now();
-    const hits = raycaster.intersectObject(targetMesh, false);
+    raycaster.intersectObject(pagoda, false);
     lastRaycastMs = performance.now() - t0;
-    if (hits.length > 0) {
-      hitPosTmp.copy(hits[0].point);
-      // Get normal of the hit face — derive from face index
-      const face = hits[0].face;
-      const n = face.normal;
-      // Transform face normal into world space (account for mesh rotation)
-      hitNormTmp.set(n.x, n.y, n.z).transformDirection(targetMesh.matrixWorld).normalize();
-      hitOk = true;
-    }
-  } else if (mode === 'always') {
-    hitOk = true;
-    // Auto-pick a useful slice point: pick the camera-direction-projected point
-    // on the mesh — for Always mode just pick hit from screen center
-    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-    const hits = raycaster.intersectObject(targetMesh, false);
-    if (hits.length > 0) {
-      hitPosTmp.copy(hits[0].point);
-      const n = hits[0].face.normal;
-      hitNormTmp.set(n.x, n.y, n.z).transformDirection(targetMesh.matrixWorld).normalize();
-    }
   }
 
-  if (hitOk) {
-    matUniforms.uHitWorldPos.value.copy(hitPosTmp);
-    matUniforms.uHitNormal.value.copy(hitNormTmp);
-    matUniforms.uCutActive.value = 1.0;
-  } else {
-    matUniforms.uCutActive.value = 0.0;
-  }
-
-  $('s-rc').textContent = lastRaycastMs ? lastRaycastMs.toFixed(2) + 'ms' : '—';
-
+  $('s-rc').textContent = lastRaycastMs ? lastRaycastMs.toFixed(2) + (bvhEnabled ? 'ms (BVH)' : 'ms') : '—';
   frameCount++;
   const now = performance.now();
   if (now - lastFps >= 500) {
@@ -445,7 +598,6 @@ function animate() {
 
 document.getElementById('loading').classList.add('hidden');
 setTimeout(() => document.getElementById('loading')?.remove(), 1000);
-
 animate();
 </script>
 </body>
