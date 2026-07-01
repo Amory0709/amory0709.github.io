@@ -275,7 +275,11 @@ document.body.appendChild(renderer.domElement);
 window.__xr = { renderer, scene: null, camera: null, best: null };
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x06080c, 24, 90);
+// Start without fog — fog far=90 is too tight for the auto camera framing on
+// large models (e.g. LittlestTokyo ~600u bbox → camera ~1100u away → entire
+// frame goes solid #06080c). Fog is set dynamically inside loadGLB() once we
+// know the model's actual extent. See `updateFogForModel()`.
+scene.fog = null;
 window.__xr.scene = scene;
 
 const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 5000);
@@ -499,6 +503,17 @@ const slicePlanes = [
 // Compute the world-space AABB of the current "best" mesh + update clip-plane
 // constants + reposition the visible knife planes. Called once on every slice
 // slider change.
+
+// Set scene fog distances proportional to the model's size so the camera can
+// be auto-framed far back without losing the model into the fog color.
+// Camera is positioned ~max(size)*1.2 units from center in loadGLB().
+function applyFogForModel(size) {
+  const md = Math.max(size.x, size.y, size.z);
+  if (md < 1) { scene.fog = null; return; }
+  const camDist = md * 1.2;
+  scene.fog = new THREE.Fog(0x06080c, camDist * 0.7, camDist * 1.6);
+}
+
 function updateSlicePlanePositions() {
   // xPlane/yPlane/zPlane are marker overlays (yellow/cyan/magenta quads).
   // They live in world coords. We base them on the world AABB so they line up
@@ -742,6 +757,7 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
       }
       controls.target.copy(camTarget);
       controls.update();
+      applyFogForModel(fullSize);
       updateSlicePlanePositions();
 
       document.getElementById('loading').classList.add('hidden');
