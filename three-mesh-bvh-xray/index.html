@@ -258,7 +258,14 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 
 // === Renderer ===
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: false,
+  // localClippingEnabled is the bit that lets `material.clippingPlanes` cull geometry
+  // along an arbitrary plane — without this, clipping is a no-op and the model would
+  // ignore our slice sliders entirely.
+  localClippingEnabled: true,
+});
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.setClearColor(0x06080c, 1);
@@ -473,23 +480,69 @@ scene.add(yPlane);
 const zPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), slicePlaneMat.clone());
 scene.add(zPlane);
 
-function updateSlicePlanePositions() {
-  xPlane.position.set(aabbMin.x + u.uSliceX.value * aabbSize.x, (aabbMin.y + aabbMax.y) / 2, (aabbMin.z + aabbMax.z) / 2);
-  yPlane.position.set((aabbMin.x + aabbMax.x) / 2, aabbMin.y + u.uSliceY.value * aabbSize.y, (aabbMin.z + aabbMax.z) / 2);
-  zPlane.position.set((aabbMin.x + aabbMax.x) / 2, (aabbMin.y + aabbMax.y) / 2, aabbMin.z + u.uSliceZ.value * aabbSize.z);
+// Three persistent clip planes used to "cut" the model along x/y/z slice sliders.
+//   THREE.Plane equation: normal · p + constant ≤ 0  keeps the vertex.
+// We want to KEEP the *inside* of the slice box, so each plane's normal points
+// outward along +X/+Y/+Z. Constants are recomputed each time a slice slider
+// moves via updateSliceClipPlanes(), which uses the model group's WORLD AABB.
+// material.clippingPlanes are evaluated in world space inside the standard
+// shader, so we feed world-space planes — no per-mesh transform math required.
+const slicePlanes = [
+  new THREE.Plane(new THREE.Vector3( 1, 0, 0), 0),   // keep p.x ≤ sliceWorldX
+  new THREE.Plane(new THREE.Vector3( 0, 1, 0), 0),   // keep p.y ≤ sliceWorldY
+  new THREE.Plane(new THREE.Vector3( 0, 0, 1), 0),   // keep p.z ≤ sliceWorldZ
+];
 
-  // resize the plane geometries on each update so they always match the bounding slice face
-  const sx = aabbSize.y, sy = aabbSize.z;
-  xPlane.geometry.dispose(); xPlane.geometry = new THREE.PlaneGeometry(sx, sy);
-  xPlane.geometry.computeBoundingSphere();
-  const ss = aabbSize.x, sz = aabbSize.z;
-  yPlane.geometry.dispose(); yPlane.geometry = new THREE.PlaneGeometry(ss, sz);
-  yPlane.geometry.computeBoundingSphere();
-  const szx = aabbSize.x, szy = aabbSize.y;
-  zPlane.geometry.dispose(); zPlane.geometry = new THREE.PlaneGeometry(szx, szy);
-  zPlane.geometry.computeBoundingSphere();
+// Compute the world-space AABB of the current "best" mesh + update clip-plane
+// constants + reposition the visible knife planes. Called once on every slice
+// slider change.
+function updateSlicePlanePositions() {
+  // xPlane/yPlane/zPlane are marker overlays (yellow/cyan/magenta quads).
+  // They live in world coords. We base them on the world AABB so they line up
+  // with whatever orientation the model is currently in.
+  const worldBox = best
+    ? new THREE.Box3().setFromObject(best.parent)   // group world AABB covers best
+    : null;
+
+  if (worldBox && !worldBox.isEmpty()) {
+    xPlane.position.set(
+      (worldBox.min.x + worldBox.max.x) / 2,
+      (worldBox.min.y + worldBox.max.y) / 2,
+      u.uSliceZ.value <= 0 ? worldBox.min.z + u.uSliceZ.value * (worldBox.max.z - worldBox.min.z) : worldBox.max.z - 1e-3,
+    );
+    xPlane.rotation.set(0, Math.PI / 2, 0);
+    // resize to span the world AABB face that the slice sits on
+    xPlane.geometry.dispose();
+    xPlane.geometry = new THREE.PlaneGeometry(worldBox.max.y - worldBox.min.y, worldBox.max.z - worldBox.min.z);
+    xPlane.geometry.computeBoundingSphere();
+  }
+
+  if (worldBox && !worldBox.isEmpty()) {
+    yPlane.position.set(
+      (worldBox.min.x + worldBox.max.x) / 2,
+      (worldBox.min.y + worldBox.max.y) / 2,
+      (worldBox.min.z + worldBox.max.z) / 2,
+    );
+    // (y/quasi-x-y knife is just visual marker; not used for slicing math)
+  }
+
+  updateSliceClipPlanes();
 }
 updateSlicePlanePositions();
+
+// Compute the world-space AABB of `best.parent` (the model group) and set
+// `slicePlanes[i].constant = -sliceWorldAxis` so vertices whose axis component
+// exceeds the slice position are clipped away.
+function updateSliceClipPlanes() {
+  if (!best) return;
+  const wb = new THREE.Box3().setFromObject(best.parent);
+  if (wb.isEmpty()) return;
+  const wMin = wb.min, wMax = wb.max;
+  const wSzX = wMax.x - wMin.x, wSzY = wMax.y - wMin.y, wSzZ = wMax.z - wMin.z;
+  slicePlanes[0].constant = -(wMin.x + u.uSliceX.value * wSzX);
+  slicePlanes[1].constant = -(wMin.y + u.uSliceY.value * wSzY);
+  slicePlanes[2].constant = -(wMin.z + u.uSliceZ.value * wSzZ);
+}
 
 // ============================================================
 // ===                   loadManager                        ===
@@ -587,17 +640,30 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         aabbSize.copy(box.getSize(new THREE.Vector3()));
         u.uAabbMin.value.copy(aabbMin);
         u.uAabbMax.value.copy(aabbMax);
-        // Build the slicing shader. Pick the right shader source for THIS geometry:
-        //   - if the GLB carries per-vertex `color` attribute (LittlestTokyo, etc.) →
-        //     use the vertex-color shader so the model keeps its original palette.
-        //   - otherwise (uploaded GLB without colors, primitive GLTFs, etc.) → fall back
-        //     to a shader that uses the uniform tint alone.
-        const hasVC = !!geometry.attributes.color;
-        best.material = makeSlicingMat(hasVC);
-        targetMat = best.material;
+
+        // ── Clip-planes "x-ray" model rendering ───────────────────────────────────────
+        //
+        // The previous design REPLACED best.material with a custom ShaderMaterial,
+        // which discarded every glTF-supplied MeshStandardMaterial + its baked
+        // textures. LittlestTokyo's multi-coloured buildings come from those textures,
+        // not from vertex colors, so the model looked uniformly green. New approach:
+        //
+        //   1. Keep the original material (textures intact).
+        //   2. Enable THREE.Plane-based clipping so the model is "cut" along x/y/z
+        //      slice sliders — same visual as a CSG cross-section viewer.
+        //
+        // The Plane objects themselves live in WORLD coords (per THREE.js docs), and
+        // every slice-slider change updates their constants via updateSliceClipPlanes().
+        const origMat = best.material;
+        if (origMat) {
+          origMat.clippingPlanes = slicePlanes;
+          origMat.side = THREE.DoubleSide;
+          best.material = origMat;
+          targetMat = origMat;     // kept for console introspection; not used for shader logic
+        }
         window.__xr.best = best;
-        window.__xr.targetMat = targetMat;
-        window.__xr.hasVC = hasVC;
+        window.__xr.targetMat = origMat;
+        updateSliceClipPlanes();   // recompute now that aabbMin/Max are populated
 
         // ── Grid overlay (replaces the old dense per-triangle wireframe) ─────────────
         // We build an AABB grid in LOCAL coords of `best`. Cell size is driven by the
