@@ -14,6 +14,13 @@ const projects = [
         tags: ["WebGL", "Three.js", "Angular"]
     },
     {
+        title: "Cross-Section Viewer (MeshBVH)",
+        description: "Drop a GLB/GLTF and slice it along X / Y / Z in real time. Hover exposes hidden surfaces via three-mesh-bvh raycasting; BVH leaf-cell visualization for inspecting the acceleration structure.",
+        image: "img/three-mesh-bvh-xray.png",
+        link: "https://amory0709.github.io/three-mesh-bvh-xray/",
+        tags: ["WebGL", "Three.js", "BVH", "Shaders"]
+    },
+    {
         title: "2024 IDPwD",
         description: "A new engaging and interactive experience designed for the International Day of Persons with Disabilities 2024.",
         image: "img/2024IDPwD.png",
