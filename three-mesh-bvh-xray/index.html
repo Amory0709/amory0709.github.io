@@ -495,13 +495,20 @@ function makeSliceEdgeMat(color) {
 }
 function buildSquareEdges(sizeX, sizeY) {
   // Four edges around a plane whose local geometry plane sits in XY.
-  return new THREE.BufferGeometry().setFromPoints([
-    [-sizeX/2, -sizeY/2, 0],
-    [ sizeX/2, -sizeY/2, 0],
-    [ sizeX/2,  sizeY/2, 0],
-    [-sizeX/2,  sizeY/2, 0],
-    [-sizeX/2, -sizeY/2, 0],   // close the loop
+  // Use a Float32Array position attribute directly — BufferGeometry.setFromPoints
+  // behavior with [x,y,z] tuples is version-dependent and produced NaN positions
+  // on some three.js builds.
+  const verts = new Float32Array([
+    -sizeX/2, -sizeY/2, 0,
+     sizeX/2, -sizeY/2, 0,
+     sizeX/2,  sizeY/2, 0,
+    -sizeX/2,  sizeY/2, 0,
+    -sizeX/2, -sizeY/2, 0,  // close the loop
   ]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  g.computeBoundingSphere();
+  return g;
 }
 function makeSlicePair(fillColor) {
   // Fill + edge share the same transform; we return a Group so future changes
