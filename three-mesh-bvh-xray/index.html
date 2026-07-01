@@ -757,12 +757,17 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
           wireLines = null;
         }
         const wire = new THREE.WireframeGeometry(geometry);
+        // Wireframe used to be AdditiveBlending + depthWrite:false, which made
+        // the model look translucent and ghosted (77k transparent additive
+        // lines sort unstable → flicker). NormalBlending + depthWrite:true
+        // makes the lines render as solid edges that occlude the same way
+        // opaque geometry does, restoring proper depth perception.
         const wmat = new THREE.LineBasicMaterial({
           color: 0x6effa8,            // MeshBVH canonical mint-green
           transparent: true,
-          opacity: 0.45,
-          depthWrite: false,           // so the textured faces stay readable behind the lines
-          blending: THREE.AdditiveBlending,
+          opacity: 0.55,
+          depthWrite: true,
+          depthTest: true,
         });
         wireLines = new THREE.LineSegments(wire, wmat);
         wireLines.visible = state.wireframe;
