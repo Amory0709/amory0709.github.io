@@ -274,7 +274,7 @@ renderer.setClearColor(0x06080c, 1);
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'bvh-grid-fix';
+const __BUILD_COMMIT = 'bvh-leaves';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, __build: __BUILD_COMMIT };
 
@@ -479,8 +479,9 @@ function buildAabbGrid(min, max, cellSize, maxCellsPerAxis = 64) {
 }
 
 // Build a MeshBVH for fast raycasting acceleration, then visualize the
-// spatial partition with a uniform 3D grid of cell boxes overlaid on the
-// model's world AABB. The grid density is driven by uBvhSize.
+// spatial partition by emitting one 12-edge box per BVH leaf node. Each leaf
+// is the actual tight bounding volume the BVH computed — they hug the mesh
+// surface instead of filling empty space.
 function rebuildBVHCells(geom, meshObj) {
   if (bvhCells) {
     if (bvhCells.parent) bvhCells.parent.remove(bvhCells);
@@ -493,53 +494,38 @@ function rebuildBVHCells(geom, meshObj) {
     bvhRoot = null;
   }
 
-  // Build the BVH so acceleratedRaycast / shapecast are fast.
-  bvhRoot = new MeshBVH(geom, { maxLeafTris: 10 });
+  // Number of triangles per leaf — smaller = more cells = finer partition.
+  // bvhSize slider (0..0.3) maps to maxLeafTris via 200..40.
+  const maxLeafTris = Math.max(2, Math.round(220 - u.uBvhSize.value * 600));
+  bvhRoot = new MeshBVH(geom, { maxLeafTris });
 
-  // Visualize the spatial partition as a uniform 3D grid within the model's
-  // local-frame bounding box.
-  let lb = geom.boundingBox;
-  if (!lb) { geom.computeBoundingBox(); lb = geom.boundingBox; }
-  if (!lb) return;
-  const size = [lb.max.x - lb.min.x, lb.max.y - lb.min.y, lb.max.z - lb.min.z];
-
-  // Normalized 0..1 bvhSize slider → number of divisions per axis.
-  // Slider 0 = sparse grid (8 cells/axis), slider 0.3 = dense (32 cells/axis).
-  const divisions = Math.max(4, Math.round(8 + u.uBvhSize.value * 80));
-  const cellSize = [size[0] / divisions, size[1] / divisions, size[2] / divisions];
-  // Don't let cells get smaller than maxLeafTris-derived "useful" cell size.
-  // (Skip clipping; just keep dense if user wants it.)
-
-  // Build edges for each grid cell. Only emit cells whose center is inside
-  // the geometry's surface AABB (which is always true here since cells are
-  // bounded by the AABB).
-  const segVerts = [];
-  const xStart = lb.min.x, yStart = lb.min.y, zStart = lb.min.z;
-  const dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
-  for (let ix = 0; ix < divisions; ix++) {
-    const x0 = xStart + ix * dx;
-    const x1 = x0 + dx;
-    for (let iy = 0; iy < divisions; iy++) {
-      const y0 = yStart + iy * dy;
-      const y1 = y0 + dy;
-      for (let iz = 0; iz < divisions; iz++) {
-        const z0 = zStart + iz * dz;
-        const z1 = z0 + dz;
-        // 12 edges of the box
-        segVerts.push(x0,y0,z0, x1,y0,z0);
-        segVerts.push(x1,y0,z0, x1,y0,z1);
-        segVerts.push(x1,y0,z1, x0,y0,z1);
-        segVerts.push(x0,y0,z1, x0,y0,z0);
-        segVerts.push(x0,y1,z0, x1,y1,z0);
-        segVerts.push(x1,y1,z0, x1,y1,z1);
-        segVerts.push(x1,y1,z1, x0,y1,z1);
-        segVerts.push(x0,y1,z1, x0,y1,z0);
-        segVerts.push(x0,y0,z0, x0,y1,z0);
-        segVerts.push(x1,y0,z0, x1,y1,z0);
-        segVerts.push(x1,y0,z1, x1,y1,z1);
-        segVerts.push(x0,y0,z1, x0,y1,z1);
-      }
+  // Walk the BVH and extract every leaf's AABB [minX,minY,minZ,maxX,maxY,maxZ].
+  // The traverse callback receives the leaf's box as a 6-float array,
+  // tightly packed — no node-object lookups needed.
+  const cellBoxes = [];   // 6 floats per leaf
+  bvhRoot.traverse((idx, isLeaf, box) => {
+    if (isLeaf) {
+      for (let i = 0; i < 6; i++) cellBoxes.push(box[i]);
     }
+  });
+
+  // Build 12 line-segment edges per leaf.
+  const segVerts = [];
+  for (let i = 0; i < cellBoxes.length; i += 6) {
+    const x0 = cellBoxes[i],     y0 = cellBoxes[i + 1], z0 = cellBoxes[i + 2];
+    const x1 = cellBoxes[i + 3], y1 = cellBoxes[i + 4], z1 = cellBoxes[i + 5];
+    segVerts.push(x0,y0,z0, x1,y0,z0);
+    segVerts.push(x1,y0,z0, x1,y0,z1);
+    segVerts.push(x1,y0,z1, x0,y0,z1);
+    segVerts.push(x0,y0,z1, x0,y0,z0);
+    segVerts.push(x0,y1,z0, x1,y1,z0);
+    segVerts.push(x1,y1,z0, x1,y1,z1);
+    segVerts.push(x1,y1,z1, x0,y1,z1);
+    segVerts.push(x0,y1,z1, x0,y1,z0);
+    segVerts.push(x0,y0,z0, x0,y1,z0);
+    segVerts.push(x1,y0,z0, x1,y1,z0);
+    segVerts.push(x1,y0,z1, x1,y1,z1);
+    segVerts.push(x0,y0,z1, x0,y1,z1);
   }
 
   const lineGeom = new THREE.BufferGeometry();
@@ -553,8 +539,7 @@ function rebuildBVHCells(geom, meshObj) {
     depthTest: true,
   });
   bvhCells = new THREE.LineSegments(lineGeom, lineMat);
-  bvhCells.visible = state.wireframe;
-  // Add as child of the mesh so it inherits position/rotation/scale.
+  bvhCells.visible = true;     // BVH cell grid is structural, not a wireframe option
   meshObj.add(bvhCells);
 }
 
@@ -982,7 +967,8 @@ document.querySelectorAll('.checkbox-row').forEach(row => {
       u.uBvhDebug.value = on ? 1 : 0;
       xPlane.visible = on; yPlane.visible = on; zPlane.visible = on;
     }
-    if (key === 'wireframe') { state.wireframe = on; if (bvhCells) bvhCells.visible = on; }
+    // wireframe toggle controls the per-triangle mesh wireframe overlay
+    // (added by drawMeshWireframeOverlay below), NOT the BVH cell grid.
   });
 });
 
