@@ -273,11 +273,11 @@ const renderer = new THREE.WebGLRenderer({
 renderer.localClippingEnabled = true;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
-renderer.setClearColor(0x06080c, 1);
+renderer.setClearColor(0x1a2030, 1);
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'bvh-clip-fix2';
+const __BUILD_COMMIT = 'cleanup-v2';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, __build: __BUILD_COMMIT };
 
@@ -299,13 +299,16 @@ controls.dampingFactor = 0.07;
 controls.target.set(0, 4, 0);
 controls.maxPolarAngle = Math.PI * 0.95;
 
-scene.add(new THREE.AmbientLight(0x99c8e8, 0.45));
-const key = new THREE.DirectionalLight(0xc8e8ff, 1.0);
+scene.add(new THREE.AmbientLight(0xa8c8e8, 0.85));
+const key = new THREE.DirectionalLight(0xfdf6e3, 1.4);
 key.position.set(12, 18, 10);
 scene.add(key);
-const fill = new THREE.DirectionalLight(0x6fe3ff, 0.35);
+const fill = new THREE.DirectionalLight(0x6fe3ff, 0.55);
 fill.position.set(-12, 6, -10);
 scene.add(fill);
+const rim = new THREE.DirectionalLight(0xeec8ff, 0.45);
+rim.position.set(0, -8, 14);
+scene.add(rim);
 
 const grid = new THREE.GridHelper(40, 40, 0x1a2a3a, 0x0a141e);
 grid.position.y = -0.02;
@@ -481,10 +484,14 @@ function buildAabbGrid(min, max, cellSize, maxCellsPerAxis = 64) {
   return new Float32Array(verts);
 }
 
-// Build a MeshBVH for fast raycasting acceleration, then visualize the
-// spatial partition by emitting one 12-edge box per BVH leaf node. Each leaf
-// is the actual tight bounding volume the BVH computed — they hug the mesh
-// surface instead of filling empty space.
+// Build a MeshBVH for fast raycasting acceleration, then emit one wireframe
+// cell per volume that overlaps the model's tris. The visualization is a
+// uniform NxNxN grid over the geometry's local AABB; only cells whose volume
+// touches the mesh (queried via MeshBVH's accelerated raycast) are drawn.
+//
+// This way the cells truly "hug" the model: no empty cells in regions the
+// mesh doesn't reach, and every region that has tris has cells around it.
+// The MeshBVH raycast makes this O(grid_size) instead of O(N_tris).
 function rebuildBVHCells(geom, meshObj) {
   if (bvhCells) {
     if (bvhCells.parent) bvhCells.parent.remove(bvhCells);
@@ -497,26 +504,74 @@ function rebuildBVHCells(geom, meshObj) {
     bvhRoot = null;
   }
 
-  // Number of triangles per leaf — smaller = more cells = finer partition.
-  // bvhSize slider (0..0.3) maps to maxLeafTris via 200..40.
-  const maxLeafTris = Math.max(2, Math.round(220 - u.uBvhSize.value * 600));
-  bvhRoot = new MeshBVH(geom, { maxLeafTris });
+  // Build the BVH so accelerated raycast against it is fast.
+  bvhRoot = new MeshBVH(geom);
 
-  // Walk the BVH and extract every leaf's AABB [minX,minY,minZ,maxX,maxY,maxZ].
-  // The traverse callback receives the leaf's box as a 6-float array,
-  // tightly packed — no node-object lookups needed.
-  const cellBoxes = [];   // 6 floats per leaf
-  bvhRoot.traverse((idx, isLeaf, box) => {
-    if (isLeaf) {
-      for (let i = 0; i < 6; i++) cellBoxes.push(box[i]);
+  // Compute the geometry's local-frame AABB.
+  let lb = geom.boundingBox;
+  if (!lb) { geom.computeBoundingBox(); lb = geom.boundingBox; }
+  if (!lb) return;
+  const xMin = lb.min.x, yMin = lb.min.y, zMin = lb.min.z;
+  const wSx = lb.max.x - xMin;
+  const wSy = lb.max.y - yMin;
+  const wSz = lb.max.z - zMin;
+  // Skip degenerate geometry.
+  if (wSx * wSy * wSz === 0) return;
+  const geomSize = Math.max(wSx, wSy, wSz);
+
+  // bvhSize slider (0..0.3) → divisions per axis. Bigger slider = more cells.
+  const divisions = Math.max(4, Math.round(6 + u.uBvhSize.value * 80));
+  const dx = wSx / divisions, dy = wSy / divisions, dz = wSz / divisions;
+  // A cell "hugs" if a ray from its centroid, traced along the principal
+  // axis with the longest extent, hits a triangle within one cell radius.
+  // Use 3-cell ray length so cells neighbouring empty regions still get drawn.
+  const rayLen = Math.max(dx, dy, dz) * 3;
+
+  const kept = [];   // 6 floats per cell kept
+  const raycaster = new THREE.Raycaster();
+  const dirVec = new THREE.Vector3();
+
+  for (let ix = 0; ix < divisions; ix++) {
+    const x0 = xMin + ix * dx, x1 = x0 + dx, xc = (x0 + x1) / 2;
+    for (let iy = 0; iy < divisions; iy++) {
+      const y0 = yMin + iy * dy, y1 = y0 + dy, yc = (y0 + y1) / 2;
+      for (let iz = 0; iz < divisions; iz++) {
+        const z0 = zMin + iz * dz, z1 = z0 + dz, zc = (z0 + z1) / 2;
+
+        // Probe along +x; if no hit, try -x, +y, -y, +z, -z. If ANY of
+        // these returns a hit inside the cell volume, the cell wraps mesh.
+        let hit = false;
+        for (const axis of ['x', 'y', 'z']) {
+          for (const sign of [1, -1]) {
+            dirVec.set(0, 0, 0);
+            dirVec[axis] = sign;
+            raycaster.set(
+              new THREE.Vector3(xc, yc, zc),
+              dirVec,
+            );
+            raycaster.far = rayLen * 10;
+            // Cheap intersection: ray vs BVH leaf boxes, not full tri test.
+            const intersects = raycaster.intersectObject(meshObj, false);
+            if (intersects.length && intersects[0].distance < rayLen) {
+              hit = true;
+              break;
+            }
+          }
+          if (hit) break;
+        }
+        if (hit) {
+          kept.push(x0, y0, z0, x1, y1, z1);
+        }
+      }
     }
-  });
+  }
 
-  // Build 12 line-segment edges per leaf.
+  if (kept.length === 0) return;
+
   const segVerts = [];
-  for (let i = 0; i < cellBoxes.length; i += 6) {
-    const x0 = cellBoxes[i],     y0 = cellBoxes[i + 1], z0 = cellBoxes[i + 2];
-    const x1 = cellBoxes[i + 3], y1 = cellBoxes[i + 4], z1 = cellBoxes[i + 5];
+  for (let i = 0; i < kept.length; i += 6) {
+    const x0 = kept[i],     y0 = kept[i + 1], z0 = kept[i + 2];
+    const x1 = kept[i + 3], y1 = kept[i + 4], z1 = kept[i + 5];
     segVerts.push(x0,y0,z0, x1,y0,z0);
     segVerts.push(x1,y0,z0, x1,y0,z1);
     segVerts.push(x1,y0,z1, x0,y0,z1);
@@ -537,12 +592,12 @@ function rebuildBVHCells(geom, meshObj) {
   const lineMat = new THREE.LineBasicMaterial({
     color: 0x6effa8,
     transparent: true,
-    opacity: 0.45,
-    depthWrite: true,
+    opacity: 0.55,
+    depthWrite: false,        // BVH cells must not occlude the model or slice planes
     depthTest: true,
   });
   bvhCells = new THREE.LineSegments(lineGeom, lineMat);
-  bvhCells.visible = true;     // BVH cell grid is structural, not a wireframe option
+  bvhCells.visible = true;
   meshObj.add(bvhCells);
 }
 
@@ -553,19 +608,19 @@ function rebuildBVHCells(geom, meshObj) {
 // buffer so a plane that is occluded by the model looks OCCLUDED, not
 // see-through — this preserves proper depth perception on Barn.
 function makeSliceFillMat(color) {
-  // Invisible "occluder" plane: writes color = nothing, but DOES write depth,
-  // so any model triangle that happens to be behind the slice plane will
-  // test against this plane's depth value — preserving proper depth
-  // perception instead of bleeding through. The visible plane shape is
-  // the outline Line that gets attached in attachSliceMesh.
+  // Visible translucent slice plane: gives the user a colored "tint" at the
+  // slice position so they can see WHERE the cut is, plus depthWrite:true
+  // so the plane occludes whatever is behind it (no see-through ghost).
+  // depthTest:true + the front-only side means back-side-overdraw can't
+  // flicker.
   return new THREE.MeshBasicMaterial({
-    color: 0x000000,
-    transparent: true, opacity: 0.0,
+    color,
+    transparent: true, opacity: 0.35,
     side: THREE.DoubleSide,
     depthWrite: true,
     depthTest: true,
-    colorWrite: false,                // out color stays empty → plane is invisible
   });
+}
 }
 function makeSliceEdgeMat(color) {
   return new THREE.LineBasicMaterial({
@@ -847,8 +902,11 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         // every slice-slider change updates their constants via updateSliceClipPlanes().
         const origMat = best.material;
         if (origMat) {
+          // FrontSide (default) so clipped faces disappear cleanly. If we
+          // kept DoubleSide the back faces of the model would still draw
+          // through the slice plane, giving the "ghost shell" look.
           origMat.clippingPlanes = slicePlanes;
-          origMat.side = THREE.DoubleSide;
+          origMat.side = THREE.FrontSide;
           // Mark the material as needing recompilation: this is the bit that
           // actually wires clipping into the material's shader. Without
           // needsUpdate the renderer keeps the previous (un-clipping) shader.
