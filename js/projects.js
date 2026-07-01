@@ -1,10 +1,10 @@
 const projects = [
     {
-        title: "X-Ray Vision (MeshBVH)",
-        description: "Interactive X-ray shader on a 100k+ triangle mesh. Hover to expose hidden surfaces, accelerated by three-mesh-bvh raycasting.",
-        image: "img/three-mesh-bvh-xray.png",
-        link: "three-mesh-bvh-xray/index.html",
-        tags: ["WebGL", "Three.js", "BVH", "Shaders"]
+        title: "3D Asset Editor",
+        description: "In-browser 3D editor with vertex-level mesh editing, transform gizmos, and a built-in cannon-es physics playground. Upload GLB/GLTF/OBJ or build from primitives; drag vertices, fill holes, run play-mode with rigid bodies and ground collision.",
+        image: "img/3d-editor.png",
+        link: "https://amory0709.github.io/3d-editor/",
+        tags: ["WebGL", "Three.js", "React", "Physics", "cannon-es"]
     },
     {
         title: "High Performance Points",
