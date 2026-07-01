@@ -464,8 +464,10 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
   };
 
   gltfLoader.load(source, (gltf) => {
+    const _t0 = performance.now();
     try {
       clearScene();
+      console.log('[loadGLB] onLoad fired, scene.cleared in', (performance.now()-_t0).toFixed(1), 'ms; gltf.scene children =', gltf.scene.children.length);
 
       pagoda = gltf.scene;
       scene.add(pagoda);
@@ -478,12 +480,14 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
           obj.geometry.computeBoundingBox();
           const idx = obj.geometry.index;
           const pos = obj.geometry.attributes.position;
+          if (!pos) return;
           const tris = idx ? idx.count / 3 : pos.count / 3;
           if (tris > bestTris) { bestTris = tris; best = obj; }
           const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
           mats.forEach(m => m?.dispose());
         }
       });
+      console.log('[loadGLB] traverse done in', (performance.now()-_t0).toFixed(1), 'ms; best mesh tris =', bestTris);
 
       if (best) {
         geometry = best.geometry;
@@ -551,6 +555,7 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
       updateSlicePlanePositions();
 
       document.getElementById('loading').classList.add('hidden');
+      console.log('[loadGLB] fully done in', (performance.now()-_t0).toFixed(1), 'ms');
       // Note: we keep #loading in the DOM so subsequent loads can re-show it.
       // The original 'remove() after setTimeout' was the cause of "Cannot read
       // properties of null (reading 'querySelector')" on second load.
