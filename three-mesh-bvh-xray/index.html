@@ -307,7 +307,10 @@ dracoLoader.preload();
 
 const ktx2Loader = new KTX2Loader();
 ktx2Loader.setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/basis/');
-ktx2Loader.detectSupport(renderer);
+// Defer detectSupport() so it doesn't block module init if the WebGPU probe
+// stalls (e.g. on some headless / iframed environments). Async — runs alongside
+// the auto-load, which doesn't actually need it for non-KTX2 GLBs.
+queueMicrotask(() => { try { ktx2Loader.detectSupport(renderer); } catch (e) { /* no-op */ } });
 
 const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
