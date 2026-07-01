@@ -245,7 +245,8 @@
 {
   "imports": {
     "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+    "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.7.8/build/index.module.js"
   }
 }
 </script>
@@ -253,6 +254,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
@@ -272,7 +274,7 @@ renderer.setClearColor(0x06080c, 1);
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'occluder-fix';
+const __BUILD_COMMIT = 'bvh-cells';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, __build: __BUILD_COMMIT };
 
@@ -325,7 +327,8 @@ gltfLoader.setKTX2Loader(ktx2Loader);
 // === State (declared before loadManager so callbacks can mutate wireframe, etc.) ===
 const state = { rotate: false, bvhDebug: true, wireframe: true };
 let pagoda = null;
-let wireLines = null;
+let bvhCells = null;          // LineSegments mesh of all BVH leaf-cell boxes
+let bvhRoot = null;           // root MeshBVH instance for the active best mesh
 let geometry = null;
 let triCount = 0;
 let loading = false;
@@ -473,6 +476,78 @@ function buildAabbGrid(min, max, cellSize, maxCellsPerAxis = 64) {
     }
   }
   return new Float32Array(verts);
+}
+
+// Build a MeshBVH from `geom` and emit a single LineSegments covering all leaf
+// cells. Each leaf becomes a 12-edge wireframe box. The boxes share the
+// geometry's local frame so we attach the BVH-cells mesh as a child of the
+// best Mesh, which has its own position/rotation/scale.
+function rebuildBVHCells(geom, meshObj) {
+  // Dispose any previous cell mesh.
+  if (bvhCells) {
+    if (bvhCells.parent) bvhCells.parent.remove(bvhCells);
+    bvhCells.geometry?.dispose();
+    bvhCells.material?.dispose();
+    bvhCells = null;
+  }
+  if (bvhRoot) {
+    try { geom.disposeBoundsTree(); } catch (_) {}
+    bvhRoot = null;
+  }
+
+  // Build a fresh BVH. Use uBvhSize as the leaf-tri threshold so the demo
+  // slider controls how dense the cell grid looks. Smaller leaf-tris = more
+  // cells = finer grid.
+  const leafTris = Math.max(1, Math.round(200 - u.uBvhSize.value * 1000));
+  bvhRoot = new MeshBVH(geom, { maxLeafTris: leafTris });
+
+  // Walk the BVH and collect every leaf-node bounding box.
+  const cellBoxes = [];
+  bvhRoot.traverse((node, depth, isLeaf) => {
+    if (!isLeaf) return;
+    const mn = node.boundingBox.min, mx = node.boundingBox.max;
+    cellBoxes.push(mn.x, mn.y, mn.z, mx.x, mx.y, mx.z);
+  });
+
+  // Build a BufferGeometry of 12 line segments per cell.
+  const segVerts = [];
+  const edgesFromBox = (x0, y0, z0, x1, y1, z1) => {
+    const c = [
+      [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1],
+    ];
+    // Bottom rectangle + top rectangle + 4 verticals = 12 edges.
+    segVerts.push(x0, y0, z0, x1, y0, z0);
+    segVerts.push(x1, y0, z0, x1, y0, z1);
+    segVerts.push(x1, y0, z1, x0, y0, z1);
+    segVerts.push(x0, y0, z1, x0, y0, z0);
+    segVerts.push(x0, y1, z0, x1, y1, z0);
+    segVerts.push(x1, y1, z0, x1, y1, z1);
+    segVerts.push(x1, y1, z1, x0, y1, z1);
+    segVerts.push(x0, y1, z1, x0, y1, z0);
+    segVerts.push(x0, y0, z0, x0, y1, z0);
+    segVerts.push(x1, y0, z0, x1, y1, z0);
+    segVerts.push(x1, y0, z1, x1, y1, z1);
+    segVerts.push(x0, y0, z1, x0, y1, z1);
+  };
+  for (let i = 0; i < cellBoxes.length; i += 6) {
+    edgesFromBox(...cellBoxes.slice(i, i + 6));
+  }
+  if (segVerts.length === 0) return;
+  const lineGeom = new THREE.BufferGeometry();
+  lineGeom.setAttribute('position', new THREE.Float32BufferAttribute(segVerts, 3));
+  lineGeom.computeBoundingSphere();
+
+  const lineMat = new THREE.LineBasicMaterial({
+    color: 0x6effa8,            // MeshBVH canonical mint-green
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: true,
+    depthTest: true,
+  });
+
+  bvhCells = new THREE.LineSegments(lineGeom, lineMat);
+  bvhCells.visible = state.wireframe;
+  meshObj.add(bvhCells);
 }
 
 // === Slice-plane visualization meshes ===
@@ -683,11 +758,15 @@ function clearScene() {
     });
     pagoda = null;
   }
-  if (wireLines) {
-    scene.remove(wireLines);
-    wireLines.geometry?.dispose();
-    wireLines = null;
+  if (bvhCells) {
+    scene.remove(bvhCells);
+    bvhCells.geometry?.dispose();
+    bvhCells = null;
   }
+  if (bvhRoot && geometry) {
+    geometry.disposeBoundsTree?.();
+  }
+  bvhRoot = null;
   triCount = 0;
   geometry = null;
   document.getElementById('s-tris').textContent = '—';
@@ -781,36 +860,15 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         window.__xr.targetMat = origMat;
         updateSliceClipPlanes();   // recompute now that aabbMin/Max are populated
 
-        // ── MeshBVH-style per-triangle wireframe overlay ─────────────────────────────
-        // The user pointed us at the canonical "Three.js透视效果, web3d开源项目MeshBVH"
-        // look: dense green wireframe over the textured model. We build it the same way
-        // MeshBVH demos do — `WireframeGeometry(geometry)` exposed as additive LineSegments.
-        if (wireLines) {
-          best.parent.remove(wireLines);
-          wireLines.geometry?.dispose();
-          wireLines.material?.dispose();
-          wireLines = null;
-        }
-        const wire = new THREE.WireframeGeometry(geometry);
-        // Wireframe used to be AdditiveBlending + depthWrite:false, which made
-        // the model look translucent and ghosted (77k transparent additive
-        // lines sort unstable → flicker). NormalBlending + depthWrite:true
-        // makes the lines render as solid edges that occlude the same way
-        // opaque geometry does, restoring proper depth perception.
-        const wmat = new THREE.LineBasicMaterial({
-          color: 0x6effa8,            // MeshBVH canonical mint-green
-          transparent: true,
-          opacity: 0.55,
-          depthWrite: true,
-          depthTest: true,
-        });
-        wireLines = new THREE.LineSegments(wire, wmat);
-        wireLines.visible = state.wireframe;
-        best.parent.add(wireLines);
-        wireLines.position.copy(best.position);
-        wireLines.rotation.copy(best.rotation);
-        wireLines.scale.copy(best.scale);
-        window.__xr.wireLines = wireLines;
+        // ── MeshBVH cell-box visualization ─────────────────────────────────
+        // The "Three.js透视效果" reference is the MeshBVH demo: a sparse grid
+        // of colored cell boxes that show how the BVH partitions the model —
+        // each cell is one leaf of the BVH hierarchy. We build a BVH from the
+        // mesh's geometry and walk the leaf nodes, drawing each leaf as a
+        // 12-edge wireframe box tinted by depth.
+        rebuildBVHCells(geometry, best);
+
+        window.__xr.wireLines = bvhCells;        // keep console introspection hook
       }
 
       // Reset slice sliders to 1.0 so user sees full model first
@@ -888,7 +946,20 @@ bindSlider('sliceX', 'uSliceX', 'lbl-x');
 bindSlider('sliceY', 'uSliceY', 'lbl-y');
 bindSlider('sliceZ', 'uSliceZ', 'lbl-z');
 bindSlider('opacity', 'uOpacity', 'lbl-opacity');
-bindSlider('bvhSize', 'uBvhSize', 'lbl-bvh');
+// bvhSize drives the MeshBVH leaf-tris count. Debounced rebuild so dragging
+// the slider isn't a per-tick BVH rebuild cost.
+let _bvhRebuildTimer = null;
+$('bvhSize').addEventListener('input', e => {
+  u.uBvhSize.value = parseFloat(e.target.value);
+  $('lbl-bvh').textContent = fmt(e.target.value);
+  if (bvhRoot) {
+    clearTimeout(_bvhRebuildTimer);
+    _bvhRebuildTimer = setTimeout(() => {
+      const b = window.__xr && window.__xr.best;
+      if (b && b.geometry) rebuildBVHCells(b.geometry, b);
+    }, 80);
+  }
+});
 
 $('rimColor').addEventListener('input', e => { u.uColor.value.set(e.target.value); });
 
@@ -903,7 +974,7 @@ document.querySelectorAll('.checkbox-row').forEach(row => {
       u.uBvhDebug.value = on ? 1 : 0;
       xPlane.visible = on; yPlane.visible = on; zPlane.visible = on;
     }
-    if (key === 'wireframe') { state.wireframe = on; if (wireLines) wireLines.visible = on; }
+    if (key === 'wireframe') { state.wireframe = on; if (bvhCells) bvhCells.visible = on; }
   });
 });
 
@@ -1012,7 +1083,7 @@ function animate() {
   const t = clock.getElapsedTime();
   if (state.rotate && pagoda) {
     pagoda.rotation.y = t * 0.18;
-    if (wireLines) wireLines.rotation.y = t * 0.18;
+    // bvhCells is a child of `best`, so it inherits the rotation automatically.
   }
   controls.update();
 
