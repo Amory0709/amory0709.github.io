@@ -144,21 +144,11 @@ const p5Sketch = (p) => {
         recomputeBox();
         p.clear();
 
-        // Draw box outline so the user can SEE the containment.
-        // Faint white stroke — present but not visually loud. Without
-        // this, the box physics work invisibly and the user wonders
-        // why particles pile up at the bottom (bug report
-        // 2026-07-01: "after falling, should have a vertical box
-        // boundary, currently only the bottom boundary exists").
-        p.push();
-        p.noFill();
-        // Higher alpha (120 vs 80) so the box outline reads
-        // clearly on the dark-blue background. Below the map we
-        // don't need to compete with the gray map fill anymore.
-        p.stroke(255, 255, 255, 120);
-        p.strokeWeight(1);
-        p.rect(boxLeft, boxTop, boxRight - boxLeft, floorY - boxTop);
-        p.pop();
+        // Box outline intentionally NOT drawn. User feedback
+        // (2026-07-01 22:44): "box还有边 不要边" — the physics
+        // containment (floor + left/right walls) is still active,
+        // particles still stack inside the box, but no visible
+        // rectangle is drawn around them.
 
         p.noStroke();
 
