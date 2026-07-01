@@ -417,11 +417,17 @@ updateSlicePlanePositions();
 function clearScene() {
   if (pagoda) {
     scene.remove(pagoda);
+    // Dispose geometry only — and de-dup, since shared geometry is common.
+    // Do NOT dispose materials: Sketchfab models share materials across many
+    // meshes, and disposing a shared material from one mesh breaks every other
+    // mesh that references it. Letting JS GC handle materials (the only
+    // surviving reference, `pagoda`, was just nulled below) is safe and
+    // avoids stale-program hangs in the render loop.
+    const disposed = new Set();
     pagoda.traverse(obj => {
-      if (obj.isMesh) {
-        obj.geometry?.dispose();
-        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-        mats.forEach(m => m?.dispose());
+      if (obj.isMesh && obj.geometry && !disposed.has(obj.geometry)) {
+        obj.geometry.dispose();
+        disposed.add(obj.geometry);
       }
     });
     pagoda = null;
@@ -462,22 +468,17 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
     loading = false;
     setTimeout(() => loadingEl.classList.add('hidden'), 1500);
   };
-  // Expose last error for debugging from outside (e.g. console)
-  window.__lastLoadError = null;
-  window.__onLoadReached = '';
 
   gltfLoader.load(source, (gltf) => {
-    window.__onLoadReached = 'enter-callback';
-    const _t0 = performance.now();
     try {
       clearScene();
-      window.__onLoadReached = 'cleared';
-      console.log('[loadGLB] onLoad fired, scene.cleared in', (performance.now()-_t0).toFixed(1), 'ms; gltf.scene children =', gltf.scene.children.length);
 
       pagoda = gltf.scene;
       scene.add(pagoda);
 
-      // Find densest mesh for shader slicing
+      // Find densest mesh for shader slicing.
+      // No material disposal here — we'll replace `best`'s material below,
+      // and other meshes' shared materials are left for GC after pagoda = null.
       let best = null;
       let bestTris = 0;
       pagoda.traverse(obj => {
@@ -488,14 +489,10 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
           const idx = obj.geometry.index;
           const tris = idx ? idx.count / 3 : pos.count / 3;
           if (tris > bestTris) { bestTris = tris; best = obj; }
-          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-          mats.forEach(m => m?.dispose());
         }
       });
-      console.log('[loadGLB] traverse done in', (performance.now()-_t0).toFixed(1), 'ms; best mesh tris =', bestTris);
 
       if (best) {
-        window.__onLoadReached = 'has-best';
         geometry = best.geometry;
         const box = geometry.boundingBox;
         aabbMin.copy(box.min);
@@ -514,7 +511,6 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         wireLines.rotation.copy(best.rotation);
         wireLines.scale.copy(best.scale);
       }
-      window.__onLoadReached = 'past-best';
 
       // Reset slice sliders to 1.0 so user sees full model first
       ['sliceX', 'sliceY', 'sliceZ'].forEach(id => {
@@ -562,14 +558,11 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
       updateSlicePlanePositions();
 
       document.getElementById('loading').classList.add('hidden');
-      console.log('[loadGLB] fully done in', (performance.now()-_t0).toFixed(1), 'ms');
       // Note: we keep #loading in the DOM so subsequent loads can re-show it.
-      // The original 'remove() after setTimeout' was the cause of "Cannot read
-      // properties of null (reading 'querySelector')" on second load.
       loading = false;
       if (revokeAfterLoad) URL.revokeObjectURL(source);
     } catch (e) {
-      window.__lastLoadError = e?.message || String(e) + '\n' + (e?.stack || '');
+      console.error(e);
       onError(e);
       if (revokeAfterLoad) URL.revokeObjectURL(source);
     }
@@ -665,18 +658,24 @@ function handleFile(file) {
 }
 
 // === Default-load buttons ===
+// Bump this on every push that touches a bundled .glb — turns the GitHub
+// Pages edge cache (max-age=600) from a footgun into a no-op, so users
+// always see the binary we just shipped instead of the one their browser
+// stashed ten minutes ago.
+const GLB_CACHE_BUST = 'v3';
+
 $('btnDefault').addEventListener('click', () => {
   currentFileEl.textContent = '▶ LittlestTokyo.glb · bundled';
-  loadGLB('models/LittlestTokyo.glb');
+  loadGLB(`models/LittlestTokyo.glb?${GLB_CACHE_BUST}`);
 });
 $('btnBarn').addEventListener('click', () => {
   currentFileEl.textContent = '▶ AnisotropyBarnLamp.glb · bundled';
-  loadGLB('models/AnisotropyBarnLamp.glb');
+  loadGLB(`models/AnisotropyBarnLamp.glb?${GLB_CACHE_BUST}`);
 });
 
 // Auto-load the default
 currentFileEl.textContent = '▶ LittlestTokyo.glb · bundled (default)';
-loadGLB('models/LittlestTokyo.glb');
+loadGLB(`models/LittlestTokyo.glb?${GLB_CACHE_BUST}`);
 
 // === Hover raycast placeholder ===
 const mouse = new THREE.Vector2(-2, -2);
