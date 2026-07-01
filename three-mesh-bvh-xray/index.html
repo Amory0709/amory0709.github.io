@@ -503,8 +503,11 @@ function updateSlicePlanePositions() {
   // xPlane/yPlane/zPlane are marker overlays (yellow/cyan/magenta quads).
   // They live in world coords. We base them on the world AABB so they line up
   // with whatever orientation the model is currently in.
-  const worldBox = best
-    ? new THREE.Box3().setFromObject(best.parent)   // group world AABB covers best
+  // `best` is declared inside loadGLB(); we read it through window.__xr.best
+  // (set in line 667) so this outer-scope helper can see it before/after loads.
+  const bestRef = window.__xr && window.__xr.best;
+  const worldBox = bestRef
+    ? new THREE.Box3().setFromObject(bestRef.parent)   // group world AABB covers bestRef
     : null;
 
   if (worldBox && !worldBox.isEmpty()) {
@@ -537,8 +540,9 @@ updateSlicePlanePositions();
 // `slicePlanes[i].constant = -sliceWorldAxis` so vertices whose axis component
 // exceeds the slice position are clipped away.
 function updateSliceClipPlanes() {
-  if (!best) return;
-  const wb = new THREE.Box3().setFromObject(best.parent);
+  const bestRef = window.__xr && window.__xr.best;
+  if (!bestRef) return;
+  const wb = new THREE.Box3().setFromObject(bestRef.parent);
   if (wb.isEmpty()) return;
   const wMin = wb.min, wMax = wb.max;
   const wSzX = wMax.x - wMin.x, wSzY = wMax.y - wMin.y, wSzZ = wMax.z - wMin.z;
