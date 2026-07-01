@@ -462,11 +462,16 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
     loading = false;
     setTimeout(() => loadingEl.classList.add('hidden'), 1500);
   };
+  // Expose last error for debugging from outside (e.g. console)
+  window.__lastLoadError = null;
+  window.__onLoadReached = '';
 
   gltfLoader.load(source, (gltf) => {
+    window.__onLoadReached = 'enter-callback';
     const _t0 = performance.now();
     try {
       clearScene();
+      window.__onLoadReached = 'cleared';
       console.log('[loadGLB] onLoad fired, scene.cleared in', (performance.now()-_t0).toFixed(1), 'ms; gltf.scene children =', gltf.scene.children.length);
 
       pagoda = gltf.scene;
@@ -477,10 +482,10 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
       let bestTris = 0;
       pagoda.traverse(obj => {
         if (obj.isMesh && obj.geometry) {
-          obj.geometry.computeBoundingBox();
-          const idx = obj.geometry.index;
           const pos = obj.geometry.attributes.position;
           if (!pos) return;
+          obj.geometry.computeBoundingBox();
+          const idx = obj.geometry.index;
           const tris = idx ? idx.count / 3 : pos.count / 3;
           if (tris > bestTris) { bestTris = tris; best = obj; }
           const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
@@ -490,6 +495,7 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
       console.log('[loadGLB] traverse done in', (performance.now()-_t0).toFixed(1), 'ms; best mesh tris =', bestTris);
 
       if (best) {
+        window.__onLoadReached = 'has-best';
         geometry = best.geometry;
         const box = geometry.boundingBox;
         aabbMin.copy(box.min);
@@ -508,6 +514,7 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         wireLines.rotation.copy(best.rotation);
         wireLines.scale.copy(best.scale);
       }
+      window.__onLoadReached = 'past-best';
 
       // Reset slice sliders to 1.0 so user sees full model first
       ['sliceX', 'sliceY', 'sliceZ'].forEach(id => {
@@ -562,6 +569,7 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
       loading = false;
       if (revokeAfterLoad) URL.revokeObjectURL(source);
     } catch (e) {
+      window.__lastLoadError = e?.message || String(e) + '\n' + (e?.stack || '');
       onError(e);
       if (revokeAfterLoad) URL.revokeObjectURL(source);
     }
