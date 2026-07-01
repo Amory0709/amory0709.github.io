@@ -96,9 +96,19 @@ const p5Sketch = (p) => {
     // State x is mapped to box x so the geographic spread is
     // preserved in the pile: events from Maine land on the right
     // side of the box, Alaska on the left.
-    const BOX_WIDTH = 320;
+    const BOX_WIDTH = 260;
     const BOX_BOTTOM_OFFSET = 50;     // box bottom this many px from canvas bottom
-    const BOX_HEIGHT = 480;           // vertical extent of the box
+    const BOX_TOP = 670;              // box top — sits BELOW the US map (which
+                                       //   ends around y=665), so the entire
+                                       //   box outline is visible against the
+                                       //   dark-blue background. Previously
+                                       //   BOX_HEIGHT=480 put boxTop at y=470,
+                                      //   which landed INSIDE the map area —
+                                      //   the white 80-alpha stroke vanished
+                                      //   against the gray map fill, making
+                                      //   the box look cut off / "position
+                                      //   wrong" (bug 2026-07-01 22:43).
+    const BOX_HEIGHT = 280;          // 950 - 670
     const FLOOR_FRICTION = 0.92;      // horizontal velocity decay on floor contact
     const PARTICLE_R = 8;             // matches addParticle below
 
@@ -109,7 +119,12 @@ const p5Sketch = (p) => {
 
     function recomputeBox() {
         floorY = p.height - BOX_BOTTOM_OFFSET;
-        boxTop = floorY - BOX_HEIGHT;
+        // BOX_TOP is fixed below the map (not floorY - BOX_HEIGHT)
+        // so the box stays in the visible "below the map" band on
+        // any window size — the alternative formula drifts the box
+        // top around as the window resizes, which would re-introduce
+        // the "behind the map" overlap on tall windows.
+        boxTop = Math.min(BOX_TOP, floorY - 60);
         // Center the box horizontally so the visual focus is
         // straight down the middle of the screen (under the map).
         boxLeft = (p.width - BOX_WIDTH) / 2;
@@ -137,9 +152,12 @@ const p5Sketch = (p) => {
         // boundary, currently only the bottom boundary exists").
         p.push();
         p.noFill();
-        p.stroke(255, 255, 255, 80);
+        // Higher alpha (120 vs 80) so the box outline reads
+        // clearly on the dark-blue background. Below the map we
+        // don't need to compete with the gray map fill anymore.
+        p.stroke(255, 255, 255, 120);
         p.strokeWeight(1);
-        p.rect(boxLeft, boxTop, boxRight - boxLeft, BOX_HEIGHT);
+        p.rect(boxLeft, boxTop, boxRight - boxLeft, floorY - boxTop);
         p.pop();
 
         p.noStroke();
