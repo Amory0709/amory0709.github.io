@@ -581,7 +581,16 @@ function updateSlicePlanePositions() {
   // inside loadGLB() and not visible to this module-scope helper.
   const bestRef = window.__xr && window.__xr.best;
   const worldBox = bestRef
-    ? new THREE.Box3().setFromObject(bestRef.parent)
+    ? (() => {
+        // updateMatrixWorld first — without this, setFromObject sees the
+        // parent's stale local transforms and returns a box with NaN size
+        // when the parent was just re-pagoda'd inside loadGLB (rotation
+        // changed without an intervening render). Symptom: edge
+        // BufferGeometry gets NaN positions, three.js logs
+        // "Computed radius is NaN".
+        bestRef.parent.updateMatrixWorld(true);
+        return new THREE.Box3().setFromObject(bestRef.parent);
+      })()
     : null;
   if (!worldBox || worldBox.isEmpty()) return;
 
