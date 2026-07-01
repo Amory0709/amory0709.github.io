@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cross-Section Viewer · Three.js + MeshBVH</title>
-  <meta name="description" content="Inspect a dense 3D model slice-by-slice along X / Y / Z, accelerated by three-mesh-bvh raycast.">
+  <meta name="description" content="Drop any GLB / GLTF, slice it along X / Y / Z in real time.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
@@ -24,6 +24,7 @@
     body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-weight: 300; }
     canvas { display: block; }
 
+    /* Top-left info */
     #header { position: fixed; top: 24px; left: 24px; z-index: 10; pointer-events: none; }
     #header .eyebrow {
       font-family: 'JetBrains Mono', monospace; font-size: 11px;
@@ -33,6 +34,35 @@
     #header h1 { font-size: 22px; font-weight: 400; letter-spacing: -0.5px; }
     #header .sub { margin-top: 4px; font-size: 12px; color: var(--text-dim); max-width: 380px; line-height: 1.5; }
 
+    /* Drop zone (top-center) — wait, I want it under the header so it's adjacent.
+       Use top-left just below #header. */
+    #dropZone {
+      position: fixed; top: 130px; left: 24px; z-index: 9;
+      width: 320px; padding: 14px 16px;
+      background: var(--panel); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      border: 1.5px dashed rgba(120, 200, 255, 0.25);
+      border-radius: 12px; color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    #dropZone:hover, #dropZone.dragover {
+      border-color: var(--accent);
+      background: rgba(111, 227, 255, 0.10);
+      color: var(--accent);
+      box-shadow: 0 0 24px rgba(111, 227, 255, 0.18);
+    }
+    #dropZone .big { font-size: 14px; color: var(--text); margin-bottom: 4px; }
+    #dropZone .small { font-size: 10px; letter-spacing: 1px; }
+    #dropZone .filename {
+      display: block; margin-top: 6px;
+      color: var(--hot); font-size: 11px;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    #dropZone .filename:empty { display: none; }
+    #fileInput { display: none; }
+
+    /* Right-side control panel */
     #panel {
       position: fixed; top: 24px; right: 24px; width: 280px;
       background: var(--panel); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
@@ -97,6 +127,19 @@
       box-shadow: 0 0 6px var(--accent-glow);
     }
 
+    .btn {
+      width: 100%; background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border); color: var(--text);
+      padding: 8px 10px; border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      letter-spacing: 1.5px; cursor: pointer; transition: all 0.15s;
+      margin-bottom: 6px;
+    }
+    .btn:hover { background: rgba(111, 227, 255, 0.10); border-color: var(--accent); color: var(--accent); }
+    .btn.primary {
+      background: rgba(111, 227, 255, 0.10); border-color: var(--accent); color: var(--accent);
+    }
+
     #hint {
       position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
       font-family: 'JetBrains Mono', monospace; font-size: 11px;
@@ -132,13 +175,20 @@
 <body>
 <div id="loading">
   <div class="spinner"></div>
-  <div>Loading LittlestTokyo.glb · 4 MB · Draco-compressed</div>
+  <div>Loading GLB · preparing shaders</div>
 </div>
 
 <div id="header">
   <div class="eyebrow">⟁ THREE-MESH-BVH</div>
   <h1>Cross-Section Viewer</h1>
-  <div class="sub">Slice a 180k+ triangle Tokyo city block along X / Y / Z. Vanilla Raycaster takes 50–200 ms per hover; three-mesh-bvh drops it to &lt;1 ms.</div>
+  <div class="sub">Drop any GLB / GLTF · slice it along X / Y / Z. Vanilla Raycaster takes 50–200 ms per hover on dense meshes; three-mesh-bvh drops it to &lt;1 ms.</div>
+</div>
+
+<div id="dropZone" tabindex="0">
+  <div class="big">⬇  Drop GLB / GLTF here</div>
+  <div class="small">or click to choose a file</div>
+  <span class="filename" id="currentFile"></span>
+  <input type="file" id="fileInput" accept=".glb,.gltf,model/gltf-binary,model/gltf+json">
 </div>
 
 <div id="panel">
@@ -181,6 +231,11 @@
     <span>Wireframe</span>
     <span class="toggle"></span>
   </div>
+
+  <div style="margin-top:14px; padding-top:10px; border-top: 1px solid var(--border)">
+    <button class="btn primary" id="btnDefault">Load Tokyo Cityscape</button>
+    <button class="btn" id="btnBarn">Load Barn (smaller test)</button>
+  </div>
 </div>
 
 <div id="hint">DRAG TO ORBIT · WHEEL TO ZOOM</div>
@@ -199,6 +254,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 
 // === Renderer ===
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -231,122 +288,32 @@ const grid = new THREE.GridHelper(40, 40, 0x1a2a3a, 0x0a141e);
 grid.position.y = -0.02;
 scene.add(grid);
 
-// === Build pagoda: load GLB model from local repo ===
-// LittlestTokyo is Draco-compressed; configure DRACOLoader before loading.
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-
+// === GLTFLoaders (one shared; gets reused for file uploads + URLs) ===
 const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/');
-dracoLoader.preload();  // ensures decoder wasm is fetched before first decompress
+dracoLoader.preload();
+
+const ktx2Loader = new KTX2Loader();
+ktx2Loader.setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/basis/');
+ktx2Loader.detectSupport(renderer);
 
 const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
-const PRIMARY_URL = 'models/LittlestTokyo.glb';
-let pagoda = null;       // root Object3D holding the loaded scene
-let wireLines = null;    // LineSegments overlay of the densest mesh
-let geometry = null;     // we'll pick the largest mesh for shader-based slicing
+gltfLoader.setKTX2Loader(ktx2Loader);
+
+// === State (declared before loadManager so callbacks can mutate wireframe, etc.) ===
+const state = { rotate: false, bvhDebug: true, wireframe: true };
+let pagoda = null;
+let wireLines = null;
+let geometry = null;
 let triCount = 0;
-let pendingLoad = true;
+let loading = false;
 
-gltfLoader.load('models/LittlestTokyo.glb', (gltf) => {
-  pagoda = gltf.scene;
-  scene.add(pagoda);
-
-  // Sum up all meshes' triangle counts and pick the largest child for slicing.
-  // (slicing the whole tiny scene is fine too but the effect shines on dense meshes.)
-  let best = null;
-  let bestTris = 0;
-  pagoda.traverse(obj => {
-    if (obj.isMesh && obj.geometry) {
-      obj.geometry.computeBoundingBox();
-      const idx = obj.geometry.index;
-      const pos = obj.geometry.attributes.position;
-      const tris = idx ? idx.count / 3 : pos.count / 3;
-      if (tris > bestTris) {
-        bestTris = tris;
-        best = obj;
-      }
-    }
-  });
-  if (best) {
-    geometry = best.geometry;
-    geometry.computeBoundingBox();
-    // Replace best mesh's material with our slice-aware ShaderMaterial
-    targetMat.uniforms.uOpacity.value = parseFloat(document.getElementById('opacity').value);
-    targetMat.uniforms.uAabbMin.value.copy(geometry.boundingBox.min);
-    targetMat.uniforms.uAabbMax.value.copy(geometry.boundingBox.max);
-    aabbMin.copy(geometry.boundingBox.min);
-    aabbMax.copy(geometry.boundingBox.max);
-    aabbSize.copy(geometry.boundingBox.getSize(new THREE.Vector3()));
-    best.material = targetMat;
-    triCount = bestTris;
-
-    // Wireframe overlay of the same mesh
-    const wire = new THREE.WireframeGeometry(geometry);
-    const wmat = new THREE.LineBasicMaterial({ color: 0xa8e6ff, transparent: true, opacity: 0.45 });
-    const lines = new THREE.LineSegments(wire, wmat);
-    best.parent.add(lines);
-    lines.position.copy(best.position);
-    lines.rotation.copy(best.rotation);
-    lines.scale.copy(best.scale);
-    wireLines = lines;
-  }
-
-  // Count total tris across the whole scene for display
-  pagoda.traverse(obj => {
-    if (obj.isMesh && obj.geometry) {
-      const pos = obj.geometry.attributes.position;
-      const idx = obj.geometry.index;
-      triCount += idx ? idx.count / 3 : pos.count / 3;
-    }
-  });
-  document.getElementById('s-tris').textContent = triCount.toLocaleString();
-  pendingLoad = false;
-  updateSlicePlanePositions();
-  document.getElementById('loading')?.classList.add('hidden');
-  setTimeout(() => document.getElementById('loading')?.remove(), 600);
-
-  // Auto-fit camera to the loaded model
-  const fullBox = new THREE.Box3().setFromObject(pagoda);
-  const center = fullBox.getCenter(new THREE.Vector3());
-  const fullSize = fullBox.getSize(new THREE.Vector3());
-  const maxDim = Math.max(fullSize.x, fullSize.y, fullSize.z);
-  controls.target.copy(center);
-  // Decide Y up vs Z up based on the bounding box aspect — Y tall = architecture
-  const isTall = fullSize.y > Math.max(fullSize.x, fullSize.z) * 1.2;
-  if (!isTall) {
-    // Likely Z-up; tilt the camera accordingly
-    pagoda.rotation.x = -Math.PI / 2;
-    pagoda.updateMatrixWorld(true);
-    const newBox = new THREE.Box3().setFromObject(pagoda);
-    const nc = newBox.getCenter(new THREE.Vector3());
-    const ns = newBox.getSize(new THREE.Vector3());
-    controls.target.copy(nc);
-    const md = Math.max(ns.x, ns.y, ns.z);
-    camera.position.set(nc.x + md * 1.4, nc.y + md * 1.0, nc.z + md * 1.4);
-  } else {
-    const md = maxDim;
-    camera.position.set(center.x + md * 1.0, center.y + md * 0.7, center.z + md * 1.0);
-  }
-  controls.update();
-}, (xhr) => {
-  const pct = xhr.total ? Math.round(xhr.loaded * 100 / xhr.total) : 0;
-  document.querySelector('#loading div:last-child')?.replaceChildren(
-    document.createTextNode(`Loading LittlestTokyo.glb · ${pct}%`)
-  );
-}, (err) => {
-  console.error('GLB load failed:', err);
-  document.querySelector('#loading div:last-child')?.replaceChildren(
-    document.createTextNode('Failed to load GLB · check models/ folder')
-  );
-});
-
-// === Forward declarations (referenced before declaration) ===
 const aabbMin = new THREE.Vector3();
 const aabbMax = new THREE.Vector3();
 const aabbSize = new THREE.Vector3(1, 1, 1);
 
-// === Shader uniforms ===
+// === Shader material with X/Y/Z slicing ===
 const u = {
   uOpacity:    { value: 1.0 },
   uColor:      { value: new THREE.Color('#ace7bf') },
@@ -356,17 +323,19 @@ const u = {
   uSliceZ:     { value: 1.0 },
   uBvhSize:    { value: 0.05 },
   uBvhDebug:   { value: 1.0 },
-  uAabbMin:    { value: new THREE.Vector3(aabbMin.x, aabbMin.y, aabbMin.z) },
-  uAabbMax:    { value: new THREE.Vector3(aabbMax.x, aabbMax.y, aabbMax.z) },
+  uAabbMin:    { value: new THREE.Vector3() },
+  uAabbMax:    { value: new THREE.Vector3() },
 };
 
 const targetMat = new THREE.ShaderMaterial({
   uniforms: u,
   vertexShader: /* glsl */`
     varying vec3 vWorldPos;
+    varying vec3 vLocalPos;
     void main() {
       vec4 wp = modelMatrix * vec4(position, 1.0);
       vWorldPos = wp.xyz;
+      vLocalPos = position;
       gl_Position = projectionMatrix * viewMatrix * wp;
     }
   `,
@@ -380,15 +349,15 @@ const targetMat = new THREE.ShaderMaterial({
     uniform vec3  uAabbMin;
     uniform vec3  uAabbMax;
     varying vec3 vWorldPos;
+    varying vec3 vLocalPos;
 
     void main() {
-      vec3 norm = (vWorldPos - uAabbMin) / (uAabbMax - uAabbMin);
-      // model sits in axis-aligned AABB; if user slices below the actual extent, the
-      // first sliced region is still valid (mesh sits at 0..1 because of AABB).
+      // Use LOCAL position so that slicing follows the model as it rotates / scales.
+      vec3 norm = (vLocalPos - uAabbMin) / max(uAabbMax - uAabbMin, vec3(1e-5));
 
-      bool insideX = norm.x <= uSliceX + 1e-5;
-      bool insideY = norm.y <= uSliceY + 1e-5;
-      bool insideZ = norm.z <= uSliceZ + 1e-5;
+      bool insideX = norm.x <= uSliceX + 1e-4;
+      bool insideY = norm.y <= uSliceY + 1e-4;
+      bool insideZ = norm.z <= uSliceZ + 1e-4;
       bool inside = insideX && insideY && insideZ;
 
       float ed = uBvhSize;
@@ -397,17 +366,8 @@ const targetMat = new THREE.ShaderMaterial({
       if (abs(norm.y - uSliceY) < ed && insideX && insideZ) band = max(band, 1.0 - abs(norm.y - uSliceY) / ed);
       if (abs(norm.z - uSliceZ) < ed && insideX && insideY) band = max(band, 1.0 - abs(norm.z - uSliceZ) / ed);
 
-      // Sliced surfaces on the cut planes glow:
-      //  - "wall" of a cut → normal of plane is axis-aligned
-      // We just brighten the cross-section area near the cut bands.
       vec3 col = uColor;
       col = mix(col * 0.7, uHighlight, band * 0.95);
-
-      // For the surface that lies ON the slice plane (one of the band's
-      // surfaces), highlight more strongly.
-      float onCutX = step(insideX ? 1.0 : 0.0, 0.5) * (1.0 - step(insideX ? 1.0 : 0.0, 0.5));
-      // (not used directly; band above covers it)
-
       float alpha = inside ? uOpacity : 0.0;
       gl_FragColor = vec4(col, alpha);
     }
@@ -417,48 +377,186 @@ const targetMat = new THREE.ShaderMaterial({
   depthWrite: true,
 });
 
-// === Slice-plane visualizations ===
+// === Slice-plane visualization meshes ===
 const slicePlaneMat = new THREE.MeshBasicMaterial({
-  color: 0x6fe3ff,
-  transparent: true,
-  opacity: 0.20,
-  side: THREE.DoubleSide,
-  depthWrite: false,
+  color: 0x6fe3ff, transparent: true, opacity: 0.20,
+  side: THREE.DoubleSide, depthWrite: false,
 });
-// X-plane = vertical, perpendicular to x: makes a square (y,z) sized
-const xPlane = new THREE.Mesh(
-  new THREE.PlaneGeometry(aabbSize.y, aabbSize.z),
-  slicePlaneMat.clone()
-);
+const xPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), slicePlaneMat.clone());
 xPlane.rotation.set(0, Math.PI / 2, 0);
 scene.add(xPlane);
-
-// Y-plane = horizontal: square (x,z)
-const yPlane = new THREE.Mesh(
-  new THREE.PlaneGeometry(aabbSize.x, aabbSize.z),
-  slicePlaneMat.clone()
-);
+const yPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), slicePlaneMat.clone());
 yPlane.rotation.set(-Math.PI / 2, 0, 0);
 scene.add(yPlane);
-
-// Z-plane = vertical, perpendicular to z: square (x,y)
-const zPlane = new THREE.Mesh(
-  new THREE.PlaneGeometry(aabbSize.x, aabbSize.y),
-  slicePlaneMat.clone()
-);
+const zPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), slicePlaneMat.clone());
 scene.add(zPlane);
 
 function updateSlicePlanePositions() {
   xPlane.position.set(aabbMin.x + u.uSliceX.value * aabbSize.x, (aabbMin.y + aabbMax.y) / 2, (aabbMin.z + aabbMax.z) / 2);
   yPlane.position.set((aabbMin.x + aabbMax.x) / 2, aabbMin.y + u.uSliceY.value * aabbSize.y, (aabbMin.z + aabbMax.z) / 2);
   zPlane.position.set((aabbMin.x + aabbMax.x) / 2, (aabbMin.y + aabbMax.y) / 2, aabbMin.z + u.uSliceZ.value * aabbSize.z);
+
+  // resize the plane geometries on each update so they always match the bounding slice face
+  const sx = aabbSize.y, sy = aabbSize.z;
+  xPlane.geometry.dispose(); xPlane.geometry = new THREE.PlaneGeometry(sx, sy);
+  xPlane.geometry.computeBoundingSphere();
+  const ss = aabbSize.x, sz = aabbSize.z;
+  yPlane.geometry.dispose(); yPlane.geometry = new THREE.PlaneGeometry(ss, sz);
+  yPlane.geometry.computeBoundingSphere();
+  const szx = aabbSize.x, szy = aabbSize.y;
+  zPlane.geometry.dispose(); zPlane.geometry = new THREE.PlaneGeometry(szx, szy);
+  zPlane.geometry.computeBoundingSphere();
 }
 updateSlicePlanePositions();
 
-// === State ===
-const state = { rotate: false, bvhDebug: true, wireframe: true };
+// ============================================================
+// ===                   loadManager                        ===
+// ============================================================
+// Replaces whatever is in the scene with a freshly loaded GLTF.
+// Accepts either a URL string (HTTP fetch) or a `File`/`Blob` object.
+function clearScene() {
+  if (pagoda) {
+    scene.remove(pagoda);
+    pagoda.traverse(obj => {
+      if (obj.isMesh) {
+        obj.geometry?.dispose();
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach(m => m?.dispose());
+      }
+    });
+    pagoda = null;
+  }
+  if (wireLines) {
+    scene.remove(wireLines);
+    wireLines.geometry?.dispose();
+    wireLines = null;
+  }
+  triCount = 0;
+  geometry = null;
+  document.getElementById('s-tris').textContent = '—';
+}
 
-// GLB will populate s-tris once loaded. Don't show procedural placeholder.
+function loadGLB(source, isFile = false, revokeAfterLoad = false) {
+  if (loading) return;
+  loading = true;
+
+  const loadingEl = document.getElementById('loading');
+  loadingEl.classList.remove('hidden');
+  // Re-show the loading element in case its visibility was hidden by a prior load
+  const statusEl = loadingEl.querySelector('div:last-child');
+  statusEl.textContent = (isFile ? 'Decoding ' : 'Loading ') + source + '…';
+
+  const onProgress = (xhr) => {
+    if (xhr.total) {
+      const pct = Math.round(xhr.loaded * 100 / xhr.total);
+      statusEl.textContent = `${isFile ? 'Decoding' : 'Loading'} ${pct}%`;
+    }
+  };
+  const onError = (err) => {
+    console.error('GLB load failed:', err);
+    statusEl.textContent = 'Failed · see console';
+    loading = false;
+  };
+
+  gltfLoader.load(source, (gltf) => {
+    try {
+      clearScene();
+
+      pagoda = gltf.scene;
+      scene.add(pagoda);
+
+      // Find densest mesh for shader slicing
+      let best = null;
+      let bestTris = 0;
+      pagoda.traverse(obj => {
+        if (obj.isMesh && obj.geometry) {
+          obj.geometry.computeBoundingBox();
+          const idx = obj.geometry.index;
+          const pos = obj.geometry.attributes.position;
+          const tris = idx ? idx.count / 3 : pos.count / 3;
+          if (tris > bestTris) { bestTris = tris; best = obj; }
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach(m => m?.dispose());
+        }
+      });
+
+      if (best) {
+        geometry = best.geometry;
+        const box = geometry.boundingBox;
+        aabbMin.copy(box.min);
+        aabbMax.copy(box.max);
+        aabbSize.copy(box.getSize(new THREE.Vector3()));
+        u.uAabbMin.value.copy(aabbMin);
+        u.uAabbMax.value.copy(aabbMax);
+        // Replace material with shader
+        best.material = targetMat;
+        // Wireframe overlay attached to best.parent so it follows transforms
+        const wire = new THREE.WireframeGeometry(geometry);
+        const wmat = new THREE.LineBasicMaterial({ color: 0xa8e6ff, transparent: true, opacity: 0.45 });
+        wireLines = new THREE.LineSegments(wire, wmat);
+        best.parent.add(wireLines);
+        wireLines.position.copy(best.position);
+        wireLines.rotation.copy(best.rotation);
+        wireLines.scale.copy(best.scale);
+      }
+
+      // Reset slice sliders to 1.0 so user sees full model first
+      ['sliceX', 'sliceY', 'sliceZ'].forEach(id => {
+        const el = document.getElementById(id);
+        el.value = 1.0;
+        const uniform = 'uSlice' + id[5];
+        u[uniform].value = 1.0;
+        document.getElementById('lbl-' + id.charAt(5).toLowerCase()).textContent = '1.00';
+      });
+
+      // Recount total tris across the whole scene for the stats badge
+      let total = 0;
+      pagoda.traverse(obj => {
+        if (obj.isMesh && obj.geometry) {
+          const idx = obj.geometry.index;
+          const pos = obj.geometry.attributes.position;
+          total += idx ? idx.count / 3 : pos.count / 3;
+        }
+      });
+      triCount = total;
+      document.getElementById('s-tris').textContent = total.toLocaleString();
+
+      // Center camera on the new model. Detect Y-up vs Z-up by aspect.
+      const fullBox = new THREE.Box3().setFromObject(pagoda);
+      const center = fullBox.getCenter(new THREE.Vector3());
+      const fullSize = fullBox.getSize(new THREE.Vector3());
+      const isTall = fullSize.y > Math.max(fullSize.x, fullSize.z) * 1.2;
+      let camTarget;
+      if (!isTall) {
+        // Likely Z-up (typical GLTF); rotate the whole scene to Y-up for our slicing grid
+        pagoda.rotation.x = -Math.PI / 2;
+        pagoda.updateMatrixWorld(true);
+        const newBox = new THREE.Box3().setFromObject(pagoda);
+        camTarget = newBox.getCenter(new THREE.Vector3());
+        const newSize = newBox.getSize(new THREE.Vector3());
+        const md = Math.max(newSize.x, newSize.y, newSize.z);
+        camera.position.set(camTarget.x + md * 1.2, camTarget.y + md * 0.8, camTarget.z + md * 1.2);
+      } else {
+        camTarget = center;
+        const md = Math.max(fullSize.x, fullSize.y, fullSize.z);
+        camera.position.set(center.x + md * 0.9, center.y + md * 0.6, center.z + md * 0.9);
+      }
+      controls.target.copy(camTarget);
+      controls.update();
+      updateSlicePlanePositions();
+
+      document.getElementById('loading').classList.add('hidden');
+      // Note: we keep #loading in the DOM so subsequent loads can re-show it.
+      // The original 'remove() after setTimeout' was the cause of "Cannot read
+      // properties of null (reading 'querySelector')" on second load.
+      loading = false;
+      if (revokeAfterLoad) URL.revokeObjectURL(source);
+    } catch (e) {
+      onError(e);
+      if (revokeAfterLoad) URL.revokeObjectURL(source);
+    }
+  }, onProgress, onError);
+}
 
 // === UI bindings ===
 function $(id) { return document.getElementById(id); }
@@ -477,9 +575,7 @@ bindSlider('sliceZ', 'uSliceZ', 'lbl-z');
 bindSlider('opacity', 'uOpacity', 'lbl-opacity');
 bindSlider('bvhSize', 'uBvhSize', 'lbl-bvh');
 
-$('rimColor').addEventListener('input', e => {
-  u.uColor.value.set(e.target.value);
-});
+$('rimColor').addEventListener('input', e => { u.uColor.value.set(e.target.value); });
 
 document.querySelectorAll('.checkbox-row').forEach(row => {
   row.addEventListener('click', () => {
@@ -492,20 +588,84 @@ document.querySelectorAll('.checkbox-row').forEach(row => {
       u.uBvhDebug.value = on ? 1 : 0;
       xPlane.visible = on; yPlane.visible = on; zPlane.visible = on;
     }
-    if (key === 'wireframe') {
-      state.wireframe = on;
-      wireLines.visible = on;
-    }
+    if (key === 'wireframe') { state.wireframe = on; if (wireLines) wireLines.visible = on; }
   });
 });
 
-// Hover raycast — what three-mesh-bvh would accelerate
+// === Drop zone + file picker ===
+const dropZone = $('dropZone');
+const fileInput = $('fileInput');
+const currentFileEl = $('currentFile');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+});
+
+fileInput.addEventListener('change', e => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  handleFile(file);
+});
+
+['dragenter', 'dragover'].forEach(ev => {
+  dropZone.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation();
+    dropZone.classList.add('dragover');
+  });
+});
+['dragleave', 'drop'].forEach(ev => {
+  dropZone.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation();
+    dropZone.classList.remove('dragover');
+  });
+});
+
+// Whole-window drop is also supported (so users don't have to aim at the small box)
+['dragenter', 'dragover', 'drop'].forEach(ev => {
+  window.addEventListener(ev, e => {
+    if (ev === 'dragover') e.preventDefault();
+  });
+});
+
+dropZone.addEventListener('drop', e => {
+  const file = e.dataTransfer?.files?.[0];
+  if (file) handleFile(file);
+});
+
+function handleFile(file) {
+  const name = file.name.toLowerCase();
+  if (!name.endsWith('.glb') && !name.endsWith('.gltf')) {
+    alert(`Sorry, "${file.name}" isn't a .glb or .gltf. Try a 3D model exported from Sketchfab / Blender.`);
+    return;
+  }
+  currentFileEl.textContent = `▶ ${file.name} · ${(file.size / 1024).toFixed(0)} KB`;
+  // GLTFLoader requires a URL/string; blob URL is fine and freed on loadManager.load() success.
+  const blobUrl = URL.createObjectURL(file);
+  // Tag the URL so the onLoad can revoke it after success
+  loadGLB(blobUrl, /*isFile*/ true, /*revokeAfterLoad*/ true);
+}
+
+// === Default-load buttons ===
+$('btnDefault').addEventListener('click', () => {
+  currentFileEl.textContent = '▶ LittlestTokyo.glb · bundled';
+  loadGLB('models/LittlestTokyo.glb');
+});
+$('btnBarn').addEventListener('click', () => {
+  currentFileEl.textContent = '▶ AnisotropyBarnLamp.glb · bundled';
+  loadGLB('models/AnisotropyBarnLamp.glb');
+});
+
+// Auto-load the default
+currentFileEl.textContent = '▶ LittlestTokyo.glb · bundled (default)';
+loadGLB('models/LittlestTokyo.glb');
+
+// === Hover raycast placeholder ===
 const mouse = new THREE.Vector2(-2, -2);
 const raycaster = new THREE.Raycaster();
 raycaster.firstHitOnly = true;
 let mouseOver = false;
 let lastRaycastMs = 0;
-const bvhEnabled = false;
 window.addEventListener('pointermove', e => {
   mouse.x = (e.clientX / innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / innerHeight) * 2 + 1;
@@ -524,20 +684,20 @@ const clock = new THREE.Clock();
 
 function animate() {
   const t = clock.getElapsedTime();
-  if (state.rotate) {
+  if (state.rotate && pagoda) {
     pagoda.rotation.y = t * 0.18;
-    wireLines.rotation.y = pagoda.rotation.y;
+    if (wireLines) wireLines.rotation.y = t * 0.18;
   }
   controls.update();
 
-  if (mouseOver) {
+  if (mouseOver && pagoda) {
     raycaster.setFromCamera(mouse, camera);
     const t0 = performance.now();
-    raycaster.intersectObject(pagoda, false);
+    raycaster.intersectObject(pagoda, true);
     lastRaycastMs = performance.now() - t0;
   }
 
-  $('s-rc').textContent = lastRaycastMs ? lastRaycastMs.toFixed(2) + (bvhEnabled ? 'ms (BVH)' : 'ms') : '—';
+  $('s-rc').textContent = lastRaycastMs ? lastRaycastMs.toFixed(2) + 'ms' : '—';
   frameCount++;
   const now = performance.now();
   if (now - lastFps >= 500) {
@@ -550,9 +710,6 @@ function animate() {
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
-
-document.getElementById('loading').classList.add('hidden');
-setTimeout(() => document.getElementById('loading')?.remove(), 1000);
 animate();
 </script>
 </body>
