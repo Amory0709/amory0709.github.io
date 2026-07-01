@@ -474,24 +474,62 @@ function buildAabbGrid(min, max, cellSize, maxCellsPerAxis = 64) {
 }
 
 // === Slice-plane visualization meshes ===
-// Each plane uses a distinct saturated color so the user can immediately tell
-// which axis the slice is on. Opacity 0.45 + additive blending makes them pop
-// against the dark background without washing out the model.
-function makeSlicePlaneMat(color) {
+// Each slice has a faint translucent fill (so you can see the model through it,
+// no additive flicker) plus a saturated wireframe outline edge (so you can
+// always tell which way the knife is facing). Both are written to the depth
+// buffer so a plane that is occluded by the model looks OCCLUDED, not
+// see-through — this preserves proper depth perception on Barn.
+function makeSliceFillMat(color) {
   return new THREE.MeshBasicMaterial({
-    color, transparent: true, opacity: 0.45,
+    color, transparent: true, opacity: 0.18,
     side: THREE.DoubleSide, depthWrite: false,
-    blending: THREE.AdditiveBlending,
   });
 }
-const xPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), makeSlicePlaneMat(0xffd86b)); // amber = X axis
-xPlane.rotation.set(0, Math.PI / 2, 0);
-scene.add(xPlane);
-const yPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), makeSlicePlaneMat(0x6fe3ff)); // cyan = Y axis
-yPlane.rotation.set(-Math.PI / 2, 0, 0);
-scene.add(yPlane);
-const zPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), makeSlicePlaneMat(0xff6bd6)); // magenta = Z axis
-scene.add(zPlane);
+function makeSliceEdgeMat(color) {
+  return new THREE.LineBasicMaterial({
+    color, transparent: true, opacity: 0.95,
+    depthWrite: true,                 // outline writes depth so back face hides properly
+  });
+}
+function buildSquareEdges(sizeX, sizeY) {
+  // Four edges around a plane whose local geometry plane sits in XY.
+  return new THREE.BufferGeometry().setFromPoints([
+    [-sizeX/2, -sizeY/2, 0],
+    [ sizeX/2, -sizeY/2, 0],
+    [ sizeX/2,  sizeY/2, 0],
+    [-sizeX/2,  sizeY/2, 0],
+    [-sizeX/2, -sizeY/2, 0],   // close the loop
+  ]);
+}
+function makeSlicePair(fillColor) {
+  // Fill + edge share the same transform; we return a Group so future changes
+  // to position/rotation update both at once.
+  const g = new THREE.Group();
+  return { group: g, fill: null, edge: null, edgeColor: fillColor };
+}
+function attachSliceMesh(slicePair, sizeX, sizeY) {
+  const g = slicePair.group;
+  // Tear down previous fill/edge before rebuilding for new geometry size.
+  while (g.children.length) {
+    const c = g.children.pop();
+    if (c.geometry) c.geometry.dispose();
+  }
+  const fill = new THREE.Mesh(new THREE.PlaneGeometry(sizeX, sizeY), makeSliceFillMat(slicePair.edgeColor));
+  g.add(fill);
+  const edge = new THREE.Line(buildSquareEdges(sizeX, sizeY), makeSliceEdgeMat(slicePair.edgeColor));
+  g.add(edge);
+  slicePair.fill = fill;
+  slicePair.edge = edge;
+}
+
+const xPlane = makeSlicePair(0xffd86b); // amber = X axis
+xPlane.group.rotation.set(0, Math.PI / 2, 0);
+scene.add(xPlane.group);
+const yPlane = makeSlicePair(0x6fe3ff); // cyan = Y axis
+yPlane.group.rotation.set(-Math.PI / 2, 0, 0);
+scene.add(yPlane.group);
+const zPlane = makeSlicePair(0xff6bd6); // magenta = Z axis
+scene.add(zPlane.group);
 
 // Three persistent clip planes used to "cut" the model along x/y/z slice sliders.
 //   THREE.Plane equation: normal · p + constant ≤ 0  keeps the vertex.
@@ -547,31 +585,25 @@ function updateSlicePlanePositions() {
   // xPlane — normal +X, sits at sliceX position along X, geometry on YZ face.
   {
     const sx = wMin.x + u.uSliceX.value * wSzX;
-    xPlane.position.set(sx, midY, midZ);
-    xPlane.rotation.set(0, Math.PI / 2, 0);
-    xPlane.geometry.dispose();
-    xPlane.geometry = new THREE.PlaneGeometry(wSzY, wSzZ);
-    xPlane.geometry.computeBoundingSphere();
+    xPlane.group.position.set(sx, midY, midZ);
+    xPlane.group.rotation.set(0, Math.PI / 2, 0);
+    attachSliceMesh(xPlane, wSzY, wSzZ);
   }
 
   // yPlane — normal +Y, sits at sliceY position along Y, geometry on XZ face.
   {
     const sy = wMin.y + u.uSliceY.value * wSzY;
-    yPlane.position.set(midX, sy, midZ);
-    yPlane.rotation.set(-Math.PI / 2, 0, 0);
-    yPlane.geometry.dispose();
-    yPlane.geometry = new THREE.PlaneGeometry(wSzX, wSzZ);
-    yPlane.geometry.computeBoundingSphere();
+    yPlane.group.position.set(midX, sy, midZ);
+    yPlane.group.rotation.set(-Math.PI / 2, 0, 0);
+    attachSliceMesh(yPlane, wSzX, wSzZ);
   }
 
   // zPlane — normal +Z, sits at sliceZ position along Z, geometry on XY face.
   {
     const sz = wMin.z + u.uSliceZ.value * wSzZ;
-    zPlane.position.set(midX, midY, sz);
-    zPlane.rotation.set(0, 0, 0);
-    zPlane.geometry.dispose();
-    zPlane.geometry = new THREE.PlaneGeometry(wSzX, wSzY);
-    zPlane.geometry.computeBoundingSphere();
+    zPlane.group.position.set(midX, midY, sz);
+    zPlane.group.rotation.set(0, 0, 0);
+    attachSliceMesh(zPlane, wSzX, wSzY);
   }
 
   updateSliceClipPlanes();
