@@ -618,18 +618,38 @@ function makeSliceFillMat(color) {
   // so the plane occludes whatever is behind it (no see-through ghost).
   // depthTest:true + the front-only side means back-side-overdraw can't
   // flicker.
+  //
+  // polygonOffset pushes the slice plane slightly AWAY from the camera so
+  // model surfaces that are exactly at the slice position win the depth
+  // test instead of z-fighting. Without this, slicing through dense meshes
+  // (e.g. LittlestTokyo with hundreds of building walls) produces visible
+  // flicker at the cut. Positive factor/units = push back (glPolygonOffset
+  // semantics: the polygon's depth value is increased before the depth
+  // comparison, so co-located model fragments pass and the plane yields).
   return new THREE.MeshBasicMaterial({
     color,
     transparent: true, opacity: 0.35,
     side: THREE.DoubleSide,
     depthWrite: true,
     depthTest: true,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
   });
 }
 function makeSliceEdgeMat(color) {
   return new THREE.LineBasicMaterial({
     color, transparent: true, opacity: 0.95,
     depthWrite: true,                 // outline writes depth so back face hides properly
+    // Same trick as the fill: push the edge slightly away from the camera
+    // so a model surface that lies exactly on the slice plane draws on top
+    // of the edge instead of fighting it (visible as jitter on the
+    // outline). Lines are 1D primitives so the offset is subtler, but
+    // Factor: 1 / Units: 1 matches the fill so the outline keeps its
+    // co-planar relationship with the tint.
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
   });
 }
 function buildSquareEdges(sizeX, sizeY) {
