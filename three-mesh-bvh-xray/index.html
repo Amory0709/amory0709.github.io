@@ -485,13 +485,27 @@ function disposeRaycastBVHs(root) {
 // for BVH construction. The visible meshes are untouched — this is purely
 // a BVH-coverage union so cells appear around *every* part of the model,
 // not just whatever sub-mesh happened to have the most triangles.
-function collectMergedGeometry(root) {
+function collectMergedGeometry(root, bestMesh) {
   // updateMatrixWorld(true) force-updates BOTH local matrices (via
-  // updateMatrix()) and world matrices, so the `obj.matrix` we read below
-  // is current. Without this, freshly-loaded GLBs (whose Object3Ds were
-  // added to the scene and never rendered) have stale identity matrices
-  // and every sub-geom collapses onto the same origin.
+  // updateMatrix()) and world matrices, so the `obj.matrixWorld` we read
+  // below is current. Without this, freshly-loaded GLBs (whose Object3Ds
+  // were added to the scene and never rendered) have stale identity
+  // matrices and every sub-geom collapses onto the same origin.
   root.updateMatrixWorld(true);
+  // Pre-compute the inverse of `bestMesh`'s world matrix. We bake every
+  // sub-mesh's vertices into bestMesh's LOCAL coordinate space, not its
+  // own local space and not world space. The BVH-cell wireframe is then
+  // attached as a CHILD of bestMesh, so its world position is
+  //     best.matrixWorld * bvhVertex
+  // Substituting our bake:
+  //     best.matrixWorld * (best.matrixWorld^-1 * obj.matrixWorld * V_local)
+  //   = obj.matrixWorld * V_local
+  // which is exactly the mesh's own world position. This holds for every
+  // mesh in the model, no matter where they sit in the pagoda hierarchy
+  // (LittlestTokyo's buildings are scattered across many nested groups
+  // with their own TRS — the previous local-or-world choice would put
+  // non-best BVH cells at the wrong place).
+  const bestMatInv = new THREE.Matrix4().copy(bestMesh.matrixWorld).invert();
   const parts = [];
   root.traverse(obj => {
     if (!obj.isMesh || !obj.geometry) return;
@@ -501,17 +515,10 @@ function collectMergedGeometry(root) {
     // duplicates verts and drops the index — cheap, and BVH doesn't care
     // about indexing.
     const cloned = g.index ? g.toNonIndexed() : g.clone();
-    // Bake vertices into each mesh's LOCAL coordinate space (obj.matrix),
-    // not world space (obj.matrixWorld). The bvhCells wireframe we emit
-    // later is attached as a CHILD of the `best` mesh, so its world-space
-    // position is `pagoda.matrix * best.matrix * bvhVertex`. Using
-    // local-space vertices here means that path equals the model's own
-    // vertex path, so the BVH boxes track the model no matter how we
-    // later rotate `pagoda` (e.g. Z-up → Y-up auto-rotate in loadGLB).
-    // The previous matrixWorld version broke the moment pagoda got a
-    // non-identity rotation, because the wireframe vertices were frozen
-    // in world space but then re-transformed by the new rotation.
-    cloned.applyMatrix4(obj.matrix);
+    // Transform: mesh local → mesh world (obj.matrixWorld) → bestMesh
+    // local (bestMatInv). Combined matrix is multiplied once.
+    const m = new THREE.Matrix4().multiplyMatrices(bestMatInv, obj.matrixWorld);
+    cloned.applyMatrix4(m);
     // mergeGeometries() requires every input geometry to have the EXACT
     // same set of attributes. GLB sub-meshes often disagree (some have
     // only `position`, others add `normal`, `uv`, `color`, `tangent`, …).
@@ -1008,7 +1015,7 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         // not just `best.geometry`. That way small accessories — like the
         // Barn's light bulb, which is a separate small mesh with fewer
         // triangles than the barn wall — are still wrapped by BVH cells.
-        const mergedGeom = collectMergedGeometry(pagoda);
+        const mergedGeom = collectMergedGeometry(pagoda, best);
         if (mergedGeom) {
           // Free the previous merged geometry (if any). It's not the
           // visible mesh's geometry, so it has no renderer resources to
