@@ -871,18 +871,45 @@ function clearScene() {
   document.getElementById('s-tris').textContent = '—';
 }
 
-// Detect which axis is the model's "up" (height direction) by BBox shortest axis.
-// Returns 'x', 'y', or 'z'. Symmetric models (cube/sphere) default to 'y'.
+// Detect which axis is the model's "up" (height direction) by BBox aspect.
+//
+// Heuristic: the up axis is the one whose extent differs MOST from the
+// average of the other two. This works for the common model shapes:
+//   - Flat cities/buildings (XZ roughly equal horizontal, Y different) → Y
+//   - Standing characters / trees (XZ roughly equal, Y tallest)         → Y
+//   - True Z-up exports (XY roughly equal, Z tallest)                  → Z
+//   - True X-up exports (YZ roughly equal, X tallest)                  → X
+//   - Symmetric shapes (cube / sphere — all extents tie)              → Y
+//                                                                  (Three.js convention)
+//
+// The previous "shortest axis = up" version mis-identified:
+//   - True Z-up models with two similar horizontal axes → returned Y (default)
+//   - True X-up models → returned Y (default)
+//   - Tall Y-up characters where X happened to be the shortest → returned X
+// "Most different from the mean of the other two" is the only heuristic
+// that handles BOTH "flat" and "tall" cases without a flag.
+//
+// Edge cases the user must still override via the dropdown:
+//   - Long flat objects (cars: X is the length, but Y is height/up).
+//     The X axis has the largest deviation here, so the heuristic still
+//     returns X — wrong for a car. Manual override is the only fix.
 function detectUpAxis(root) {
   const size = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
-  const sorted = [
+  const axes = [
     { a: 'x', l: size.x },
     { a: 'y', l: size.y },
     { a: 'z', l: size.z },
-  ].sort((p, q) => p.l - q.l);
-  // If two or three axes are tied (diff < 0.1%), default to y.
-  if (sorted.length >= 2 && Math.abs(sorted[0].l - sorted[1].l) / sorted[1].l < 0.001) return 'y';
-  return sorted[0].a;
+  ];
+  for (const ax of axes) {
+    const others = axes.filter(o => o.a !== ax.a).map(o => o.l);
+    ax.dev = Math.abs(ax.l - (others[0] + others[1]) / 2);
+  }
+  // Sort by deviation descending; on tie, prefer 'y' (Three.js default).
+  axes.sort((p, q) => {
+    if (q.dev !== p.dev) return q.dev - p.dev;
+    return p.a === 'y' ? -1 : q.a === 'y' ? 1 : 0;
+  });
+  return axes[0].a;
 }
 
 // Returns the quaternion needed to rotate a model so its `fromAxis` points
