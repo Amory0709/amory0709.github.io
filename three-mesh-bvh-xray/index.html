@@ -270,7 +270,7 @@ renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the mod
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'tokyo-upright-and-bvh-aligned-v20';
+const __BUILD_COMMIT = 'tokyo-upright-and-bvh-aligned-v21';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, bvhRoot: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
@@ -918,7 +918,12 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         const md = Math.max(fullSize.x, fullSize.y, fullSize.z);
         // Camera placement: front-right-above the model, with Y as up.
         const camTarget = center;
-        camera.position.set(center.x + md * 0.9, center.y + md * 0.6, center.z + md * 0.9);
+        // Place camera on the NEGATIVE-X side of the model (in front of the
+        // model's front face), looking toward center.  The old code had an
+        // implicit minus here because it ran after `rotation.x = -π/2` which
+        // moved the camera from the +X side to the -X side.  Without that
+        // rotation we must apply the sign ourselves.
+        camera.position.set(center.x - md * 0.9, center.y + md * 0.6, center.z + md * 0.9);
         controls.target.copy(camTarget);
         controls.update();
         applyFogForModel(fullSize);
