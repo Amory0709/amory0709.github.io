@@ -246,7 +246,16 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
+import { MeshBVH, acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
+
+// One-time prototype wiring. three-mesh-bvh's accelerated raycast only kicks
+// in when (a) Mesh.prototype.raycast is replaced and (b) each geometry's
+// `boundsTree` slot is populated (by computeBoundsTree). Without this trio,
+// Raycaster.intersectObject falls back to the default per-triangle loop and
+// hover is 10-50x slower than the UI promises.
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
@@ -412,6 +421,43 @@ function buildMeshBVH(geom, maxDepth = 40) {
   bvhRoot = new MeshBVH(geom, { maxDepth });
   geometry = geom;
   window.__xr.bvhRoot = bvhRoot;
+}
+
+// Build a per-mesh MeshBVH on every visible mesh under `root`. This is what
+// the hover raycaster actually consumes: acceleratedRaycast looks up
+// `mesh.geometry.boundsTree` per mesh, so a single merged BVH (used for
+// the leaf-cell wireframe) does nothing for hover. We build both — the
+// merged BVH powers the visualization, these per-mesh BVHs power the
+// raycast. Cost is ~one build per sub-mesh, but each is small (Tokyo's
+// 66 sub-meshes together still finish well under the merged build).
+//
+// Uses the lib's `computeBoundsTree` so the BVH is wired onto
+// geometry.boundsTree where acceleratedRaycast expects to find it.
+function buildRaycastBVHs(root, maxDepth = 40) {
+  let count = 0;
+  root.traverse(obj => {
+    if (!obj.isMesh || !obj.geometry) return;
+    const g = obj.geometry;
+    if (typeof g.computeBoundsTree === 'function') {
+      g.computeBoundsTree({ maxDepth });
+      count++;
+    }
+  });
+  return count;
+}
+
+// Tear down per-mesh BVHs before clearScene disposes the geometries.
+function disposeRaycastBVHs(root) {
+  let count = 0;
+  root.traverse(obj => {
+    if (!obj.isMesh || !obj.geometry) return;
+    const g = obj.geometry;
+    if (g.boundsTree && typeof g.disposeBoundsTree === 'function') {
+      g.disposeBoundsTree();
+      count++;
+    }
+  });
+  return count;
 }
 
 // Walk every Mesh under `root`, clone each geometry, bake the mesh's
@@ -746,6 +792,10 @@ function updateSliceClipPlanes() {
 function clearScene() {
   _sceneVersion++;   // invalidate any pending async rebuild callbacks
   if (pagoda) {
+    // Drop per-mesh BVH slots BEFORE we dispose the geometries — otherwise
+    // the lib's disposeBoundsTree becomes a no-op (it only frees if
+    // boundsTree is set) and we leak the underlying BVH buffers.
+    disposeRaycastBVHs(pagoda);
     scene.remove(pagoda);
     // Dispose geometry only — and de-dup, since shared geometry is common.
     // Do NOT dispose materials: Sketchfab models share materials across many
@@ -763,8 +813,11 @@ function clearScene() {
     pagoda = null;
   }
   if (bvhCells) {
-    scene.remove(bvhCells);
+    // bvhCells was attached as a CHILD of `best` (not to scene), so
+    // scene.remove is a no-op. Detach from its real parent, then dispose.
+    if (bvhCells.parent) bvhCells.parent.remove(bvhCells);
     bvhCells.geometry?.dispose();
+    bvhCells.material?.dispose();
     bvhCells = null;
   }
   if (bvhRoot && geometry) {
@@ -909,6 +962,11 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
           rebuildBVHCellsWireframe(best);
         }
 
+        // Per-mesh BVHs power the hover raycaster (acceleratedRaycast reads
+        // geometry.boundsTree per mesh). The merged BVH above is for the
+        // wireframe visualisation only — it doesn't accelerate hover.
+        buildRaycastBVHs(pagoda, u.uBvhDepth.value);
+
         window.__xr.wireLines = bvhCells;        // keep console introspection hook
       }
 
@@ -1042,6 +1100,15 @@ $('bvhDepth').addEventListener('change', e => {
     const t0 = performance.now();
     buildMeshBVH(merged, v);               // rebuild BVH on merged geom
     rebuildBVHCellsWireframe(window.__xr?.best);   // walk new tree, emit wireframe
+    // Rebuild per-mesh raycast BVHs to match the new depth. Without this,
+    // hovering after a slider release would still be tested against the OLD
+    // BVH until the next model load. Drop the old ones first so the lib
+    // can actually free their buffers.
+    const pagodaNow = window.__xr?.best?.parent;
+    if (pagodaNow) {
+      disposeRaycastBVHs(pagodaNow);
+      buildRaycastBVHs(pagodaNow, v);
+    }
     const ms = performance.now() - t0;
     console.info(`[xray] BVH rebuilt (maxDepth=${v}) in ${ms.toFixed(0)}ms`);
   });
@@ -1103,6 +1170,10 @@ fileInput.addEventListener('change', e => {
   const file = e.target.files?.[0];
   if (!file) return;
   handleFile(file);
+  // Reset the input's value so picking the SAME file twice in a row still
+  // fires `change`. Without this the browser deduplicates identical picks
+  // and the handler is silently skipped on the second try.
+  e.target.value = '';
 });
 
 ['dragenter', 'dragover'].forEach(ev => {
