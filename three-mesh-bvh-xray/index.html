@@ -280,6 +280,15 @@ const renderer = new THREE.WebGLRenderer({
   // along an arbitrary plane — without this, clipping is a no-op and the model would
   // ignore our slice sliders entirely.
   localClippingEnabled: true,
+  // logarithmicDepthBuffer: replaces the default linear depth mapping
+  // depth = zNear*zFar / (zFar - z*Δ) with depth ∝ log(z). Linear mapping
+  // has poor precision when zFar/zNear is large (precision ∝ 1/(zFar/zNear)²);
+  // for a city-scale model where the user can orbit way out, the road and
+  // zebra-crossing decals that are ~0.001m apart end up in the same depth
+  // bucket and z-fight. Log depth gives uniform precision at every
+  // distance, so those near-co-planar surfaces stay resolved. Requires
+  // WebGL2 or the EXT_frag_depth extension — Three.js auto-detects.
+  logarithmicDepthBuffer: true,
 });
 // Belt-and-suspenders: some three.js builds ignore the constructor option; the
 // renderer.localClippingEnabled property must be true for clipping to take effect.
