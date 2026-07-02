@@ -207,8 +207,8 @@
     <input type="range" id="sliceZ" min="0" max="1" step="0.001" value="0.00">
   </div>
   <div class="ctl">
-    <label>BVH Detail <span class="v" id="lbl-bvh">22</span></label>
-    <input type="range" id="bvhDetail" min="0" max="100" step="1" value="22">
+    <label>BVH Depth <span class="v" id="lbl-bvh">40</span></label>
+    <input type="range" id="bvhDepth" min="1" max="40" step="1" value="40">
   </div>
 
   <div class="checkbox-row" data-key="rotate">
@@ -269,7 +269,7 @@ renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the mod
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'bvh-detail-semantic-v15';
+const __BUILD_COMMIT = 'bvh-depth-semantic-v16';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, bvhRoot: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
@@ -359,25 +359,27 @@ let _sceneVersion = 0;
 
 // Slice / BVH uniforms. Note: the model itself is sliced via THREE.Plane
 // clipping on the original PBR materials (so glTF textures survive) — these
-// uniforms only drive the slice-pane slider values and the BVH detail slider.
+// uniforms only drive the slice-pane slider values and the BVH depth slider.
 // There is intentionally NO custom ShaderMaterial here any more; the earlier
 // `makeSlicingMat()` was replaced once we figured out that clippingPlanes on
 // MeshStandardMaterial is the clean way to slice while keeping vertex colours
 // and textures intact. See the long comment in loadGLB().
 //
-// uBvhDetail reads its initial value from the slider HTML so the two never
-// drift out of sync. The slider is a 0..100 precision scale; internally it
-// maps to a leaf-cell count (40..610) inside rebuildBVHCellsWireframe().
-const initialBvhDetail = (() => {
-  const el = document.getElementById('bvhDetail');
+// uBvhDepth reads its initial value from the slider HTML so the two never
+// drift out of sync. The slider IS the BVH `maxDepth` (1..40), passed
+// straight into `new MeshBVH(geom, { maxDepth })`. Adjusting it triggers a
+// full BVH rebuild + wireframe rebuild on the next change event (slider
+// release) — NOT on every input tick, because the BVH build is expensive.
+const initialBvhDepth = (() => {
+  const el = document.getElementById('bvhDepth');
   const n = el ? parseInt(el.value, 10) : NaN;
-  return Number.isFinite(n) ? n : 22;
+  return Number.isFinite(n) ? n : 40;
 })();
 const u = {
   uSliceX:     { value: 1.0 },
   uSliceY:     { value: 1.0 },
   uSliceZ:     { value: 1.0 },
-  uBvhDetail:  { value: initialBvhDetail },
+  uBvhDepth:   { value: initialBvhDepth },
 };
 
 // Build a MeshBVH for fast raycasting acceleration, then emit ONE wireframe
@@ -392,11 +394,10 @@ const u = {
 // (isLeaf === true) and use the AABB of each leaf as a cell. The leaf count
 // is capped by the BVH-Detail slider (mapped to 40..610 leaves).
 // Build (or rebuild) the MeshBVH for a model. Expensive — ~100–500 ms for
-// Tokyo-sized meshes — so we only do this once, on load. The BVH-Cells
-// slider does NOT rebuild the BVH; it only re-walks the existing tree to
-// emit a different number of leaf wireframe boxes. The BVH structure
-// itself is invariant for a given geometry, so reusing it is correct.
-function buildMeshBVH(geom) {
+// Tokyo-sized meshes — so the load path uses the default depth, and the
+// BVH-Depth slider triggers a rebuild only on the slider's `change` event
+// (mouse release), not on every `input` tick during drag.
+function buildMeshBVH(geom, maxDepth = 40) {
   if (bvhRoot) {
     // Dispose the old BVH against its owning geometry, if we still have
     // a handle on it. clearScene() will have already nulled bvhRoot in
@@ -404,7 +405,7 @@ function buildMeshBVH(geom) {
     try { (geometry || geom).disposeBoundsTree?.(); } catch (_) {}
     bvhRoot = null;
   }
-  bvhRoot = new MeshBVH(geom);
+  bvhRoot = new MeshBVH(geom, { maxDepth });
   geometry = geom;
   window.__xr.bvhRoot = bvhRoot;
 }
@@ -429,25 +430,21 @@ function rebuildBVHCellsWireframe(meshObj) {
   }
 
   const kept = [];   // 6 floats per cell kept (xMin, yMin, zMin, xMax, yMax, zMax)
-  // Slider is a 0..100 precision scale (Detail); map it to the actual leaf
-  // count we want to keep. 0 = very coarse (40 leaves, a handful of big boxes),
-  // 100 = very fine (610 leaves, dense small boxes). Default at 22 = ~165 boxes.
-  const detailPct = u.uBvhDetail.value;
-  const targetLeafCount = Math.round(40 + (detailPct / 100) * 570);
-  let visitBudget = targetLeafCount * 8;   // generous budget — internal nodes
-                                            // outnumber leaves 6-8x in a BVH
+  // The number of cells visible on screen is whatever the BVH's actual leaf
+  // count is at the current maxDepth — no synthetic cap, no stride-sampling.
+  // The BVH-Depth slider is the *only* knob: deeper = more smaller cells,
+  // shallower = fewer bigger cells, exactly matching gkjohnson's inspector
+  // demo. Three.js + the BVH's boundingBox helpers do the rest.
   let leavesWalked = 0;
   // three-mesh-bvh@0.7.8 traverse(cb) signature:
   //   cb(depth, isLeaf, boundingBox, offset)
   // where boundingBox is a *Float32Array(6)* = [minX,minY,minZ, maxX,maxY,maxZ]
   // and offset is uint32 (leaf index-offset or internal splitAxis — not used here).
-  // Returning a truthy value from `cb` short-circuits the current subtree's
-  // descent; we return true at a leaf (no children to descend into) and on
-  // budget exhaustion. The previous code (incorrectly) treated the depth
-  // number as a node object and silently threw TypeError, so the slider
-  // appeared to do nothing for every drag.
+  // Returning truthy short-circuits the current subtree's descent. We return
+  // true at leaves (no children to descend into); on internal nodes, returning
+  // false continues into children. The previous (broken) version treated the
+  // depth number as a node object and silently threw TypeError.
   bvhRoot.traverse((depth, isLeaf, boundingBox) => {
-    if (visitBudget-- <= 0) return true;   // stop: budget exhausted
     if (isLeaf) {
       leavesWalked++;
       if (boundingBox) {
@@ -456,25 +453,11 @@ function rebuildBVHCellsWireframe(meshObj) {
           boundingBox[3], boundingBox[4], boundingBox[5],
         );
       }
-      return true;   // stop: leaf has no children to descend into
+      return true;
     }
-    return false;   // continue: descend into this internal node's children
+    return false;
   });
-  // If the user's "many boxes" slider pulled in many more than targetLeafCount,
-  // downsample to fit. Keeps the line count predictable as the slider moves.
-  if (kept.length / 6 > targetLeafCount) {
-    const stride = Math.ceil(kept.length / 6 / targetLeafCount);
-    const trimmed = [];
-    for (let i = 0; i < kept.length; i += 6) {
-      if ((i / 6) % stride === 0) {
-        for (let k = 0; k < 6; k++) trimmed.push(kept[i + k]);
-      }
-    }
-    kept.length = 0;
-    for (let i = 0; i < trimmed.length; i++) kept.push(trimmed[i]);
-  }
-  console.info('[xray] BVH traverse: leaves_walked=', leavesWalked,
-    'boxes_kept=', kept.length / 6, 'target=', targetLeafCount);
+  console.info('[xray] BVH wireframe rebuilt: leaves=', kept.length / 6);
 
   if (kept.length === 0) {
     // Fallback: if the mesh's BVH is degenerate (no leaves), emit a single
@@ -954,17 +937,30 @@ bindSlider('sliceZ', 'uSliceZ', 'lbl-z');
 // BVH-Cells slider. The slider value IS the leaf count (40..610), so what
 // you see on screen always matches the label.
 //
-// Drag is smooth: we only update the label during input — no BVH rebuild,
-// no wireframe rebuild. The wireframe is regenerated on the next animation
-// frame AFTER the user releases (well, on the first rAF where we aren't
-// already rebuilding). rAF coalescing means that even if the user drags
-// violently, at most one rebuild fires per frame.
-let _bvhRebuildRaf = null;
-$('bvhDetail').addEventListener('input', e => {
+// BVH-Depth slider. The slider value IS the BVH `maxDepth` (1..40), so what
+// you see on screen always matches the label — moving the slider down visibly
+// produces fewer larger cells (BVH shallower), up produces more smaller cells
+// (BVH deeper). Matches gkjohnson's three-mesh-bvh inspector demo.
+//
+// Two events on the same slider:
+//   `input`   — fires during drag. Label only; no rebuild. This keeps the
+//               drag itself buttery and lets us defer the expensive BVH build
+//               to one operation per slider release.
+//   `change`  — fires when the slider is released. Triggers a full BVH
+//               rebuild with the new `maxDepth`, then walks the new tree to
+//               emit leaf-cell wireframes. ~100-500 ms for Tokyo.
+$('bvhDepth').addEventListener('input', e => {
   const v = Math.round(parseFloat(e.target.value));
-  u.uBvhDetail.value = v;
+  u.uBvhDepth.value = v;
   $('lbl-bvh').textContent = v;
-  if (!bvhRoot || _bvhRebuildRaf) return;
+});
+
+let _bvhRebuildRaf = null;
+$('bvhDepth').addEventListener('change', e => {
+  if (!bvhRoot) return;
+  if (_bvhRebuildRaf) return;            // a rebuild is already in flight
+  const v = Math.round(parseFloat(e.target.value));
+  u.uBvhDepth.value = v;
   // Snapshot the scene version we want to rebuild for. If a model switch
   // happens before the next frame fires, the rAF bails instead of mixing
   // the OLD model's BVH with the NEW model's `best` mesh.
@@ -972,12 +968,13 @@ $('bvhDetail').addEventListener('input', e => {
   _bvhRebuildRaf = requestAnimationFrame(() => {
     _bvhRebuildRaf = null;
     if (myVersion !== _sceneVersion) return;
-    const t0 = performance.now();
     const b = window.__xr?.best;
-    if (!b) return;
-    rebuildBVHCellsWireframe(b);
+    if (!b || !b.geometry) return;
+    const t0 = performance.now();
+    buildMeshBVH(b.geometry, v);          // rebuild BVH structure with new maxDepth
+    rebuildBVHCellsWireframe(b);          // walk new tree, emit wireframe
     const ms = performance.now() - t0;
-    if (ms > 50) console.info(`[xray] BVH wireframe rebuilt in ${ms.toFixed(0)}ms`);
+    console.info(`[xray] BVH rebuilt (maxDepth=${v}) in ${ms.toFixed(0)}ms`);
   });
 });
 
