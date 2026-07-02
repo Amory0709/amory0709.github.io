@@ -250,6 +250,7 @@ import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // === Renderer ===
 const renderer = new THREE.WebGLRenderer({
@@ -269,7 +270,7 @@ renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the mod
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'bvh-depth-semantic-v16';
+const __BUILD_COMMIT = 'bvh-cover-all-meshes-v17';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, bvhRoot: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
@@ -349,6 +350,9 @@ let pagoda = null;
 let bvhCells = null;          // LineSegments mesh of all BVH leaf-cell boxes
 let bvhRoot = null;           // root MeshBVH instance for the active best mesh
 let geometry = null;
+let bvhMergedGeometry = null; // union-of-all-meshes geometry used to build
+                              // the BVH (separate from any visible mesh's
+                              // geometry; disposed in clearScene)
 let triCount = 0;
 let loading = false;
 // Bumped every time clearScene() runs. Async callbacks (e.g. the BVH-slider
@@ -408,6 +412,46 @@ function buildMeshBVH(geom, maxDepth = 40) {
   bvhRoot = new MeshBVH(geom, { maxDepth });
   geometry = geom;
   window.__xr.bvhRoot = bvhRoot;
+}
+
+// Walk every Mesh under `root`, clone each geometry, bake the mesh's
+// world transform into it, and merge them all into a single BufferGeometry
+// for BVH construction. The visible meshes are untouched — this is purely
+// a BVH-coverage union so cells appear around *every* part of the model,
+// not just whatever sub-mesh happened to have the most triangles.
+function collectMergedGeometry(root) {
+  // updateMatrixWorld once so each Mesh.matrixWorld is current; without
+  // this, freshly-loaded GLBs (whose Object3Ds were added to the scene
+  // and never rendered) have stale identity matrices and every sub-geom
+  // collapses onto the same origin.
+  root.updateMatrixWorld(true);
+  const parts = [];
+  root.traverse(obj => {
+    if (!obj.isMesh || !obj.geometry) return;
+    const g = obj.geometry;
+    // Need a non-indexed BufferGeometry for mergeGeometries (it bails on
+    // mismatched index attributes across the input list). toNonIndexed()
+    // duplicates verts and drops the index — cheap, and BVH doesn't care
+    // about indexing.
+    const cloned = g.index ? g.toNonIndexed() : g.clone();
+    cloned.applyMatrix4(obj.matrixWorld);
+    // mergeGeometries() requires every input geometry to have the EXACT
+    // same set of attributes. GLB sub-meshes often disagree (some have
+    // only `position`, others add `normal`, `uv`, `color`, `tangent`, …).
+    // BVH only needs positions, so strip every other attribute here —
+    // uniform-shape inputs make mergeGeometries happy.
+    for (const name of Object.keys(cloned.attributes)) {
+      if (name !== 'position') cloned.deleteAttribute(name);
+    }
+    cloned.clearGroups();
+    parts.push(cloned);
+  });
+  if (!parts.length) return null;
+  const merged = mergeGeometries(parts, false);
+  // Free the per-mesh clones we just merged; only the merged result
+  // needs to live until the next load (clearScene will dispose it).
+  for (const p of parts) p.dispose();
+  return merged;
 }
 
 // Walk the (already-built) BVH and emit a wireframe box per leaf-node,
@@ -726,6 +770,10 @@ function clearScene() {
   if (bvhRoot && geometry) {
     geometry.disposeBoundsTree?.();
   }
+  if (bvhMergedGeometry) {
+    bvhMergedGeometry.dispose();
+    bvhMergedGeometry = null;
+  }
   bvhRoot = null;
   triCount = 0;
   geometry = null;
@@ -843,11 +891,23 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         // ── MeshBVH cell-box visualization ─────────────────────────────────
         // The "Three.js透视效果" reference is the MeshBVH demo: a sparse grid
         // of colored cell boxes that show how the BVH partitions the model —
-        // each cell is one leaf of the BVH hierarchy. We build a BVH from the
-        // mesh's geometry and walk the leaf nodes, drawing each leaf as a
-        // 12-edge wireframe box tinted by depth.
-        buildMeshBVH(geometry);
-        rebuildBVHCellsWireframe(best);
+        // each cell is one leaf of the BVH hierarchy. We build a BVH from
+        // the UNION of every sub-mesh's geometry (baked into world space),
+        // not just `best.geometry`. That way small accessories — like the
+        // Barn's light bulb, which is a separate small mesh with fewer
+        // triangles than the barn wall — are still wrapped by BVH cells.
+        const mergedGeom = collectMergedGeometry(pagoda);
+        if (mergedGeom) {
+          // Free the previous merged geometry (if any). It's not the
+          // visible mesh's geometry, so it has no renderer resources to
+          // release, but we should keep GPU-side index buffers tidy.
+          if (bvhMergedGeometry && bvhMergedGeometry !== mergedGeom) {
+            bvhMergedGeometry.dispose();
+          }
+          bvhMergedGeometry = mergedGeom;
+          buildMeshBVH(mergedGeom);
+          rebuildBVHCellsWireframe(best);
+        }
 
         window.__xr.wireLines = bvhCells;        // keep console introspection hook
       }
