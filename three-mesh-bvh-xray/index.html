@@ -270,7 +270,7 @@ renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the mod
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'bvh-cover-all-meshes-v17';
+const __BUILD_COMMIT = 'bvh-cover-all-meshes-v18';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, bvhRoot: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
@@ -1028,11 +1028,20 @@ $('bvhDepth').addEventListener('change', e => {
   _bvhRebuildRaf = requestAnimationFrame(() => {
     _bvhRebuildRaf = null;
     if (myVersion !== _sceneVersion) return;
-    const b = window.__xr?.best;
-    if (!b || !b.geometry) return;
+    // Rebuild against bvhMergedGeometry (the union of every sub-mesh's
+    // geometry, baked into world space), NOT best.geometry. The densest
+    // single mesh — `best` — only covers part of the model; on Barn it's
+    // just the barn wall, missing the bulb's filament + glass. Using the
+    // merged geometry keeps BVH coverage equal to what the initial load
+    // produced. bvhMergedGeometry is set by loadGLB before this handler
+    // can fire for the same scene version, so it's safe to assume it
+    // exists here (the bvhRoot null check above guards the very first
+    // load, before the merged geometry is built).
+    const merged = bvhMergedGeometry;
+    if (!merged) return;
     const t0 = performance.now();
-    buildMeshBVH(b.geometry, v);          // rebuild BVH structure with new maxDepth
-    rebuildBVHCellsWireframe(b);          // walk new tree, emit wireframe
+    buildMeshBVH(merged, v);               // rebuild BVH on merged geom
+    rebuildBVHCellsWireframe(window.__xr?.best);   // walk new tree, emit wireframe
     const ms = performance.now() - t0;
     console.info(`[xray] BVH rebuilt (maxDepth=${v}) in ${ms.toFixed(0)}ms`);
   });
