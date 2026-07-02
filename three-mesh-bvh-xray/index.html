@@ -269,7 +269,7 @@ renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the mod
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'bvhrefactor-v12';
+const __BUILD_COMMIT = 'race-fix-v13';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, bvhRoot: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
@@ -351,6 +351,11 @@ let bvhRoot = null;           // root MeshBVH instance for the active best mesh
 let geometry = null;
 let triCount = 0;
 let loading = false;
+// Bumped every time clearScene() runs. Async callbacks (e.g. the BVH-slider
+// rAF) capture the current value at scheduling time and bail if it changed
+// before they fired — so a model switch mid-drag can't trigger a stale
+// rebuild against the wrong mesh's BVH.
+let _sceneVersion = 0;
 
 // Slice / BVH uniforms. Note: the model itself is sliced via THREE.Plane
 // clipping on the original PBR materials (so glTF textures survive) — these
@@ -688,6 +693,7 @@ function updateSliceClipPlanes() {
 // Replaces whatever is in the scene with a freshly loaded GLTF.
 // Accepts either a URL string (HTTP fetch) or a `File`/`Blob` object.
 function clearScene() {
+  _sceneVersion++;   // invalidate any pending async rebuild callbacks
   if (pagoda) {
     scene.remove(pagoda);
     // Dispose geometry only — and de-dup, since shared geometry is common.
@@ -935,11 +941,17 @@ $('bvhSize').addEventListener('input', e => {
   u.uBvhSize.value = v;
   $('lbl-bvh').textContent = v;
   if (!bvhRoot || _bvhRebuildRaf) return;
+  // Snapshot the scene version we want to rebuild for. If a model switch
+  // happens before the next frame fires, the rAF bails instead of mixing
+  // the OLD model's BVH with the NEW model's `best` mesh.
+  const myVersion = _sceneVersion;
   _bvhRebuildRaf = requestAnimationFrame(() => {
     _bvhRebuildRaf = null;
+    if (myVersion !== _sceneVersion) return;
     const t0 = performance.now();
     const b = window.__xr?.best;
-    if (b) rebuildBVHCellsWireframe(b);
+    if (!b) return;
+    rebuildBVHCellsWireframe(b);
     const ms = performance.now() - t0;
     if (ms > 50) console.info(`[xray] BVH wireframe rebuilt in ${ms.toFixed(0)}ms`);
   });
