@@ -269,7 +269,7 @@ renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the mod
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'cleanup-v10';
+const __BUILD_COMMIT = 'deadcode-cleanup-v11';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, bvhRoot: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
@@ -352,150 +352,19 @@ let geometry = null;
 let triCount = 0;
 let loading = false;
 
-const aabbMin = new THREE.Vector3();
-const aabbMax = new THREE.Vector3();
-const aabbSize = new THREE.Vector3(1, 1, 1);
-
-// === Shader material with X/Y/Z slicing ===
+// Slice / BVH uniforms. Note: the model itself is sliced via THREE.Plane
+// clipping on the original PBR materials (so glTF textures survive) — these
+// uniforms only drive the slice-pane slider values and the BVH detail slider.
+// There is intentionally NO custom ShaderMaterial here any more; the earlier
+// `makeSlicingMat()` was replaced once we figured out that clippingPlanes on
+// MeshStandardMaterial is the clean way to slice while keeping vertex colours
+// and textures intact. See the long comment in loadGLB().
 const u = {
-  uOpacity:    { value: 1.0 },
-  uColor:      { value: new THREE.Color('#ace7bf') },
-  uHighlight:  { value: new THREE.Color('#a8e6ff') },
   uSliceX:     { value: 1.0 },
   uSliceY:     { value: 1.0 },
   uSliceZ:     { value: 1.0 },
   uBvhSize:    { value: 0.05 },
-  uBvhDebug:   { value: 1.0 },
-  uAabbMin:    { value: new THREE.Vector3() },
-  uAabbMax:    { value: new THREE.Vector3() },
 };
-
-// Build a slicing ShaderMaterial. Two flavours:
-//   hasVC=true  → uses per-vertex `color` attribute (LittlestTokyo, glTF2 with COLORS_0)
-//   hasVC=false → falls back to the uniform tint uColor
-// Either way the result still has the same uniforms, slice math, and highlight band.
-let targetMat = null;          // assigned per-load in refreshScene()
-function makeSlicingMat(hasVC) {
-  const vcVert = hasVC ? `
-    attribute vec3 color;        // glTF vertex color (the model's original palette)
-    varying vec3 vVertColor;` : `
-    varying vec3 vVertColor;`;
-  const vcFrag = hasVC ? `
-    varying vec3 vVertColor;` : `
-    varying vec3 vVertColor;`;
-  const vcRead = hasVC ? `
-      vVertColor = color;` : `
-      vVertColor = vec3(1.0);`;  // unused on this path — kept so the linker is happy
-  return new THREE.ShaderMaterial({
-    uniforms: u,
-    vertexShader: /* glsl */`
-      varying vec3 vWorldPos;
-      varying vec3 vLocalPos;${vcVert}
-      void main() {
-        vec4 wp = modelMatrix * vec4(position, 1.0);
-        vWorldPos = wp.xyz;
-        vLocalPos = position;${vcRead}
-        gl_Position = projectionMatrix * viewMatrix * wp;
-      }
-    `,
-    fragmentShader: /* glsl */`
-      uniform float uOpacity;
-      uniform vec3  uColor;
-      uniform vec3  uHighlight;
-      uniform float uSliceX, uSliceY, uSliceZ;
-      uniform float uBvhSize;
-      uniform float uBvhDebug;
-      uniform vec3  uAabbMin;
-      uniform vec3  uAabbMax;
-      varying vec3 vWorldPos;
-      varying vec3 vLocalPos;${vcFrag}
-
-      void main() {
-        // Use LOCAL position so that slicing follows the model as it rotates / scales.
-        vec3 norm = (vLocalPos - uAabbMin) / max(uAabbMax - uAabbMin, vec3(1e-5));
-
-        bool insideX = norm.x <= uSliceX + 1e-4;
-        bool insideY = norm.y <= uSliceY + 1e-4;
-        bool insideZ = norm.z <= uSliceZ + 1e-4;
-        bool inside = insideX && insideY && insideZ;
-
-        float ed = uBvhSize;
-        float band = 0.0;
-        if (abs(norm.x - uSliceX) < ed && insideY && insideZ) band = max(band, 1.0 - abs(norm.x - uSliceX) / ed);
-        if (abs(norm.y - uSliceY) < ed && insideX && insideZ) band = max(band, 1.0 - abs(norm.y - uSliceY) / ed);
-        if (abs(norm.z - uSliceZ) < ed && insideX && insideY) band = max(band, 1.0 - abs(norm.z - uSliceZ) / ed);
-
-        // Blend rule:
-        //   - if the model carries vertex colors, use them (fixes "all green" report)
-        //   - otherwise tint with the user-selected uColor
-        //   - in both cases, the slice-plane highlight band tints toward uHighlight
-        vec3 base = ${hasVC ? 'vVertColor' : 'uColor'};
-        vec3 col = mix(base * 0.7, uHighlight, band * 0.9);
-        float alpha = inside ? uOpacity : 0.0;
-        gl_FragColor = vec4(col, alpha);
-      }
-    `,
-    transparent: true,
-    side: THREE.DoubleSide,
-    depthWrite: true,
-  });
-}
-
-// Build vertex pairs (every line is just two verts back-to-back) forming an
-// AABB-relative axis-aligned grid. Cell size is driven by `cellSize`. Result
-// is a Float32Array ready for a `position` attribute on a LineSegments mesh.
-// maxCellsPerAxis caps the line count so a giant model with cellSize=0.001
-// doesn't draw 8M lines.
-function buildAabbGrid(min, max, cellSize, maxCellsPerAxis = 64) {
-  // effective cell size so we never exceed maxCellsPerAxis
-  const size = [max.x - min.x, max.y - min.y, max.z - min.z];
-  const cs = [
-    Math.max(cellSize, size[0] / maxCellsPerAxis),
-    Math.max(cellSize, size[1] / maxCellsPerAxis),
-    Math.max(cellSize, size[2] / maxCellsPerAxis),
-  ];
-  const counts = [
-    Math.max(2, Math.ceil(size[0] / cs[0]) + 1),
-    Math.max(2, Math.ceil(size[1] / cs[1]) + 1),
-    Math.max(2, Math.ceil(size[2] / cs[2]) + 1),
-  ];
-  const verts = [];
-  const push = (ax, x, y, z, dx, dy, dz) => {
-    // emit a segment from (x,y,z) → (x+dx,y+dy,z+dz)
-    verts.push(x, y, z, x + dx, y + dy, z + dz);
-  };
-  // Lines parallel to X (vary Y, Z)
-  for (let zi = 0; zi < counts[2]; zi++) {
-    const z = min.z + zi * cs[2];
-    if (z > max.z) continue;
-    for (let yi = 0; yi < counts[1]; yi++) {
-      const y = min.y + yi * cs[1];
-      if (y > max.y) continue;
-      push('x', min.x, y, z, size[0], 0, 0);
-    }
-  }
-  // Lines parallel to Y (vary X, Z)
-  for (let xi = 0; xi < counts[0]; xi++) {
-    const x = min.x + xi * cs[0];
-    if (x > max.x) continue;
-    for (let zi = 0; zi < counts[2]; zi++) {
-      const z = min.z + zi * cs[2];
-      if (z > max.z) continue;
-      push('y', x, min.y, z, 0, size[1], 0);
-    }
-  }
-  // Lines parallel to Z (vary X, Y)
-  for (let yi = 0; yi < counts[1]; yi++) {
-    const y = min.y + yi * cs[1];
-    if (y > max.y) continue;
-    for (let xi = 0; xi < counts[0]; xi++) {
-      const x = min.x + xi * cs[0];
-      if (x > max.x) continue;
-      push('z', x, y, min.z, 0, 0, size[2]);
-    }
-  }
-  return new Float32Array(verts);
-}
 
 // Build a MeshBVH for fast raycasting acceleration, then emit ONE wireframe
 // cell per actual BVH leaf node. This is the correct visualization per the
@@ -896,12 +765,6 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
 
       if (best) {
         geometry = best.geometry;
-        const box = geometry.boundingBox;
-        aabbMin.copy(box.min);
-        aabbMax.copy(box.max);
-        aabbSize.copy(box.getSize(new THREE.Vector3()));
-        u.uAabbMin.value.copy(aabbMin);
-        u.uAabbMax.value.copy(aabbMax);
 
         // ── Clip-planes "x-ray" model rendering ───────────────────────────────────────
         //
@@ -945,13 +808,13 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
             m.needsUpdate = true;
           }
         });
-        // Keep a reference to `best`'s material purely for console introspection
-        // (window.__xr.targetMat). The actual slicing logic uses ALL materials
-        // via the seenMats traversal above.
-        targetMat = best.material || null;
+        // Keep references purely for console introspection (`window.__xr.best`,
+        // `window.__xr.targetMat`). The actual slicing logic uses ALL materials
+        // via the seenMats traversal above; the "best" mesh's material is just
+        // a representative for the dev to grab off the console.
         window.__xr.best = best;
-        window.__xr.targetMat = targetMat;
-        updateSliceClipPlanes();   // recompute now that aabbMin/Max are populated
+        window.__xr.targetMat = best.material || null;
+        updateSliceClipPlanes();
 
         // ── MeshBVH cell-box visualization ─────────────────────────────────
         // The "Three.js透视效果" reference is the MeshBVH demo: a sparse grid
