@@ -269,7 +269,7 @@ renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the mod
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'race-fix-v13';
+const __BUILD_COMMIT = 'bvh-traverse-fix-v14';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, bvhRoot: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
@@ -364,11 +364,21 @@ let _sceneVersion = 0;
 // `makeSlicingMat()` was replaced once we figured out that clippingPlanes on
 // MeshStandardMaterial is the clean way to slice while keeping vertex colours
 // and textures intact. See the long comment in loadGLB().
+//
+// uBvhSize reads its initial value from the slider HTML so the two never
+// drift out of sync (the dead-code era used 0.05 here while the slider
+// ranged 0..0.3 → the initial load rebuilt with 0 boxes and fell back to
+// a single AABB box, which manifested as 'slider doesn't change anything').
+const initialBvhCells = (() => {
+  const el = document.getElementById('bvhSize');
+  const n = el ? parseInt(el.value, 10) : NaN;
+  return Number.isFinite(n) ? n : 135;
+})();
 const u = {
   uSliceX:     { value: 1.0 },
   uSliceY:     { value: 1.0 },
   uSliceZ:     { value: 1.0 },
-  uBvhSize:    { value: 0.05 },
+  uBvhSize:    { value: initialBvhCells },
 };
 
 // Build a MeshBVH for fast raycasting acceleration, then emit ONE wireframe
@@ -426,12 +436,25 @@ function rebuildBVHCellsWireframe(meshObj) {
   let visitBudget = targetLeafCount * 8;   // generous budget — internal nodes
                                             // outnumber leaves 6-8x in a BVH
   let leavesWalked = 0;
-  bvhRoot.traverse((node) => {
+  // three-mesh-bvh@0.7.8 traverse(cb) signature:
+  //   cb(depth, isLeaf, boundingBox, offset)
+  // where boundingBox is a *Float32Array(6)* = [minX,minY,minZ, maxX,maxY,maxZ]
+  // and offset is uint32 (leaf index-offset or internal splitAxis — not used here).
+  // Returning a truthy value from `cb` short-circuits the current subtree's
+  // descent; we return true at a leaf (no children to descend into) and on
+  // budget exhaustion. The previous code (incorrectly) treated the depth
+  // number as a node object and silently threw TypeError, so the slider
+  // appeared to do nothing for every drag.
+  bvhRoot.traverse((depth, isLeaf, boundingBox) => {
     if (visitBudget-- <= 0) return true;   // stop: budget exhausted
-    if (node.isLeaf) {
+    if (isLeaf) {
       leavesWalked++;
-      const lb = node.boundingBox;
-      if (lb) kept.push(lb.min.x, lb.min.y, lb.min.z, lb.max.x, lb.max.y, lb.max.z);
+      if (boundingBox) {
+        kept.push(
+          boundingBox[0], boundingBox[1], boundingBox[2],
+          boundingBox[3], boundingBox[4], boundingBox[5],
+        );
+      }
       return true;   // stop: leaf has no children to descend into
     }
     return false;   // continue: descend into this internal node's children
