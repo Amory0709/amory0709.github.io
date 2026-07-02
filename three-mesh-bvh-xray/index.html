@@ -207,8 +207,8 @@
     <input type="range" id="sliceZ" min="0" max="1" step="0.001" value="0.00">
   </div>
   <div class="ctl">
-    <label>BVH Cells <span class="v" id="lbl-bvh">135</span></label>
-    <input type="range" id="bvhSize" min="40" max="610" step="5" value="135">
+    <label>BVH Detail <span class="v" id="lbl-bvh">22</span></label>
+    <input type="range" id="bvhDetail" min="0" max="100" step="1" value="22">
   </div>
 
   <div class="checkbox-row" data-key="rotate">
@@ -269,7 +269,7 @@ renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the mod
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'bvh-traverse-fix-v14';
+const __BUILD_COMMIT = 'bvh-detail-semantic-v15';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, bvhRoot: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
@@ -365,20 +365,19 @@ let _sceneVersion = 0;
 // MeshStandardMaterial is the clean way to slice while keeping vertex colours
 // and textures intact. See the long comment in loadGLB().
 //
-// uBvhSize reads its initial value from the slider HTML so the two never
-// drift out of sync (the dead-code era used 0.05 here while the slider
-// ranged 0..0.3 → the initial load rebuilt with 0 boxes and fell back to
-// a single AABB box, which manifested as 'slider doesn't change anything').
-const initialBvhCells = (() => {
-  const el = document.getElementById('bvhSize');
+// uBvhDetail reads its initial value from the slider HTML so the two never
+// drift out of sync. The slider is a 0..100 precision scale; internally it
+// maps to a leaf-cell count (40..610) inside rebuildBVHCellsWireframe().
+const initialBvhDetail = (() => {
+  const el = document.getElementById('bvhDetail');
   const n = el ? parseInt(el.value, 10) : NaN;
-  return Number.isFinite(n) ? n : 135;
+  return Number.isFinite(n) ? n : 22;
 })();
 const u = {
   uSliceX:     { value: 1.0 },
   uSliceY:     { value: 1.0 },
   uSliceZ:     { value: 1.0 },
-  uBvhSize:    { value: initialBvhCells },
+  uBvhDetail:  { value: initialBvhDetail },
 };
 
 // Build a MeshBVH for fast raycasting acceleration, then emit ONE wireframe
@@ -390,9 +389,8 @@ const u = {
 // grid "look different" without ever being the actual BVH structure.
 //
 // MeshBVH.traverse(cb) walks EVERY internal + leaf node; we filter to leaves
-// (isLeaf === true) and use the AABB of each leaf as a cell. If `bvhSize`
-// is set very high (>= 0.25), we merge neighbours to keep the line count
-// readable — at the default 0.05 the BVH already gives a reasonable count.
+// (isLeaf === true) and use the AABB of each leaf as a cell. The leaf count
+// is capped by the BVH-Detail slider (mapped to 40..610 leaves).
 // Build (or rebuild) the MeshBVH for a model. Expensive — ~100–500 ms for
 // Tokyo-sized meshes — so we only do this once, on load. The BVH-Cells
 // slider does NOT rebuild the BVH; it only re-walks the existing tree to
@@ -412,7 +410,7 @@ function buildMeshBVH(geom) {
 }
 
 // Walk the (already-built) BVH and emit a wireframe box per leaf-node,
-// capped at `u.uBvhSize.value` cells. Cheap (~30 ms even for Tokyo), so
+// capped by the BVH-Detail slider. Cheap (~30 ms even for Tokyo), so
 // the slider can call this on every `input` without freezing the UI.
 //
 // Important — MeshBVH.traverse() return-value semantics:
@@ -431,8 +429,11 @@ function rebuildBVHCellsWireframe(meshObj) {
   }
 
   const kept = [];   // 6 floats per cell kept (xMin, yMin, zMin, xMax, yMax, zMax)
-  // Slider now exposes the leaf count directly (40..610), so no formula needed.
-  const targetLeafCount = Math.round(u.uBvhSize.value);
+  // Slider is a 0..100 precision scale (Detail); map it to the actual leaf
+  // count we want to keep. 0 = very coarse (40 leaves, a handful of big boxes),
+  // 100 = very fine (610 leaves, dense small boxes). Default at 22 = ~165 boxes.
+  const detailPct = u.uBvhDetail.value;
+  const targetLeafCount = Math.round(40 + (detailPct / 100) * 570);
   let visitBudget = targetLeafCount * 8;   // generous budget — internal nodes
                                             // outnumber leaves 6-8x in a BVH
   let leavesWalked = 0;
@@ -959,9 +960,9 @@ bindSlider('sliceZ', 'uSliceZ', 'lbl-z');
 // already rebuilding). rAF coalescing means that even if the user drags
 // violently, at most one rebuild fires per frame.
 let _bvhRebuildRaf = null;
-$('bvhSize').addEventListener('input', e => {
+$('bvhDetail').addEventListener('input', e => {
   const v = Math.round(parseFloat(e.target.value));
-  u.uBvhSize.value = v;
+  u.uBvhDetail.value = v;
   $('lbl-bvh').textContent = v;
   if (!bvhRoot || _bvhRebuildRaf) return;
   // Snapshot the scene version we want to rebuild for. If a model switch
