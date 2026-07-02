@@ -211,6 +211,17 @@
     <input type="range" id="bvhDepth" min="1" max="40" step="1" value="40">
   </div>
 
+  <div class="ctl">
+    <label>Up Axis
+      <select id="upAxis" style="margin-left:8px; background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:2px 6px; font-size:12px;">
+        <option value="auto" selected>Auto (BBox shortest)</option>
+        <option value="y">Force Y-up (no rotation)</option>
+        <option value="z">Force Z-up (rotate -90° X)</option>
+        <option value="x">Force X-up (rotate +90° Z)</option>
+      </select>
+    </label>
+  </div>
+
   <div class="checkbox-row" data-key="rotate">
     <span>Rotate Model</span>
     <span class="toggle"></span>
@@ -833,6 +844,34 @@ function clearScene() {
   document.getElementById('s-tris').textContent = '—';
 }
 
+// Detect which axis is the model's "up" (height direction) by BBox shortest axis.
+// Returns 'x', 'y', or 'z'. Symmetric models (cube/sphere) default to 'y'.
+function detectUpAxis(root) {
+  const size = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
+  const sorted = [
+    { a: 'x', l: size.x },
+    { a: 'y', l: size.y },
+    { a: 'z', l: size.z },
+  ].sort((p, q) => p.l - q.l);
+  // If two or three axes are tied (diff < 0.1%), default to y.
+  if (sorted.length >= 2 && Math.abs(sorted[0].l - sorted[1].l) / sorted[1].l < 0.001) return 'y';
+  return sorted[0].a;
+}
+
+// Returns the quaternion needed to rotate a model so its `fromAxis` points
+// toward world +Y (Three.js up). Used when loading GLTF/GLB assets that may
+// be Z-up or X-up so they end up "standing up" in the scene.
+//
+//   'y' → identity (already Y-up)
+//   'z' → rotate -90° around X (GLTF Z-up → Y-up)
+//   'x' → rotate +90° around Z (X-up → Y-up)
+function getUpAxisQuat(fromAxis) {
+  if (fromAxis === 'y') return new THREE.Quaternion();
+  if (fromAxis === 'z') return new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+  if (fromAxis === 'x') return new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+  return new THREE.Quaternion(); // fallback
+}
+
 function loadGLB(source, isFile = false, revokeAfterLoad = false) {
   // If a load is in flight, silently ignore rather than queue — clicks fire fast.
   if (loading) {
@@ -998,26 +1037,26 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
       triCount = total;
       document.getElementById('s-tris').textContent = total.toLocaleString();
 
-      // Center camera on the new model. Detect Y-up vs Z-up by aspect.
+      // Center camera on the new model. Rotate to Y-up based on user choice:
+      //   'auto'  → detect via BBox shortest axis
+      //   'x/y/z' → force that axis as up
+      // After rotation the model "stands up" in Three.js (Y-up world), so
+      // slice X/Y/Z sliders always match the model's local axes in world space.
       const fullBox = new THREE.Box3().setFromObject(pagoda);
       const center = fullBox.getCenter(new THREE.Vector3());
       const fullSize = fullBox.getSize(new THREE.Vector3());
-      const isTall = fullSize.y > Math.max(fullSize.x, fullSize.z) * 1.2;
-      let camTarget;
-      if (!isTall) {
-        // Likely Z-up (typical GLTF); rotate the whole scene to Y-up for our slicing grid
-        pagoda.rotation.x = -Math.PI / 2;
-        pagoda.updateMatrixWorld(true);
-        const newBox = new THREE.Box3().setFromObject(pagoda);
-        camTarget = newBox.getCenter(new THREE.Vector3());
-        const newSize = newBox.getSize(new THREE.Vector3());
-        const md = Math.max(newSize.x, newSize.y, newSize.z);
-        camera.position.set(camTarget.x + md * 1.2, camTarget.y + md * 0.8, camTarget.z + md * 1.2);
-      } else {
-        camTarget = center;
-        const md = Math.max(fullSize.x, fullSize.y, fullSize.z);
-        camera.position.set(center.x + md * 0.9, center.y + md * 0.6, center.z + md * 0.9);
-      }
+      const upMode = $('upAxis').value;          // 'auto' | 'y' | 'z' | 'x'
+      const upAxis  = upMode === 'auto' ? detectUpAxis(pagoda) : upMode;
+      const quat    = getUpAxisQuat(upAxis);
+
+      pagoda.quaternion.copy(quat);
+      pagoda.updateMatrixWorld(true);
+
+      const newBox = new THREE.Box3().setFromObject(pagoda);
+      const camTarget = newBox.getCenter(new THREE.Vector3());
+      const newSize   = newBox.getSize(new THREE.Vector3());
+      const md        = Math.max(newSize.x, newSize.y, newSize.z);
+      camera.position.set(camTarget.x + md * 1.2, camTarget.y + md * 0.8, camTarget.z + md * 1.2);
       controls.target.copy(camTarget);
       controls.update();
       applyFogForModel(fullSize);
@@ -1051,6 +1090,27 @@ function bindSlider(id, uniform, lbl) {
 bindSlider('sliceX', 'uSliceX', 'lbl-x');
 bindSlider('sliceY', 'uSliceY', 'lbl-y');
 bindSlider('sliceZ', 'uSliceZ', 'lbl-z');
+
+// When the user switches the up-axis selector, re-apply rotation to the
+// currently loaded model so the change takes effect immediately.
+$('upAxis').addEventListener('change', () => {
+  if (!pagoda) return;
+  const upMode = $('upAxis').value;
+  const upAxis  = upMode === 'auto' ? detectUpAxis(pagoda) : upMode;
+  const quat    = getUpAxisQuat(upAxis);
+  pagoda.quaternion.copy(quat);
+  pagoda.updateMatrixWorld(true);
+  // Reposition camera on the newly oriented model
+  const newBox   = new THREE.Box3().setFromObject(pagoda);
+  const camTarget = newBox.getCenter(new THREE.Vector3());
+  const newSize   = newBox.getSize(new THREE.Vector3());
+  const md        = Math.max(newSize.x, newSize.y, newSize.z);
+  camera.position.set(camTarget.x + md * 1.2, camTarget.y + md * 0.8, camTarget.z + md * 1.2);
+  controls.target.copy(camTarget);
+  controls.update();
+  updateSlicePlanePositions();
+  updateSliceClipPlanes();
+});
 // (opacity slider removed — model kept its solid PBR look; alpha was confusing.)
 // BVH-Cells slider. The slider value IS the leaf count (40..610), so what
 // you see on screen always matches the label.
