@@ -270,7 +270,7 @@ renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the mod
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'bvh-cover-all-meshes-v18';
+const __BUILD_COMMIT = 'slice-toggle-preserve-cut-v19';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, bvhRoot: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
@@ -1061,37 +1061,30 @@ document.querySelectorAll('.checkbox-row').forEach(row => {
       if (bvhCells) bvhCells.visible = on;
     }
     if (key === 'sliceOn') {
-      // "Slice" — toggle the slice planes + the model's clippingPlanes
-      // together. When OFF, the model renders intact and there are no
-      // visible knife planes. Slice slider positions are preserved across
-      // toggles so the user can re-enable slicing from where they left it.
+      // "Slice" toggle — show / hide ONLY the visible knife planes.
+      // The model's clipping state is preserved: slicePlanes stays
+      // assigned to every material (set once at load, never touched again).
+      //
+      // Why not also toggle material.clippingPlanes here?
+      //   1. Toggling needs `material.needsUpdate = true`, which forces
+      //      a shader recompile. On a GLB with many shared materials,
+      //      a rapid OFF→ON click pair can flash because the recompile
+      //      is per-material, not synchronous, and the renderer keeps
+      //      drawing with the stale shader for a frame or two.
+      //   2. The user's mental model: the toggle controls *visibility*
+      //      of the slice visualization (the colored knife planes),
+      //      not whether the model is being cut. Hiding the planes
+      //      while the cut stays in place lets the user compare the
+      //      sliced view vs the unsliced view without losing their
+      //      current slider positions.
+      //   3. Keeping clippingPlanes assigned permanently means the
+      //      renderer can short-circuit slice evaluation when planes
+      //      are at the far edge (constant = worldSize), saving
+      //      per-fragment clip tests we don't need.
       state.sliceOn = on;
-      xPlane.group.visible = on;
-      yPlane.group.visible = on;
-      zPlane.group.visible = on;
-      // Walk every mesh and toggle `material.clippingPlanes`:
-      //   on  → assign the shared slicePlanes array (cuts the model)
-      //   off → set to null (model intact, no clipping)
-      window.__xr?.scene?.traverse(o => {
-        if (!o.isMesh) return;
-        const mats = Array.isArray(o.material) ? o.material : [o.material];
-        for (const m of mats) {
-          // Only touch materials we've prepared for slicing (i.e. still
-          // carry a reference to slicePlanes OR were never assigned). Avoid
-          // materials that have a completely different clipping context.
-          if (on) {
-            if (m.clippingPlanes === null || m.clippingPlanes === undefined) {
-              m.clippingPlanes = slicePlanes;
-              m.needsUpdate = true;
-            }
-          } else {
-            if (m.clippingPlanes && m.clippingPlanes !== null) {
-              m.clippingPlanes = null;
-              m.needsUpdate = true;
-            }
-          }
-        }
-      });
+      if (xPlane) xPlane.group.visible = on;
+      if (yPlane) yPlane.group.visible = on;
+      if (zPlane) zPlane.group.visible = on;
     }
   });
 });
