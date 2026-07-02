@@ -196,15 +196,15 @@
 
   <div class="ctl">
     <label>Slice X <span class="v" id="lbl-x">0.00</span></label>
-    <input type="range" id="sliceX" min="0" max="1" step="0.001" value="1.00">
+    <input type="range" id="sliceX" min="0" max="1" step="0.001" value="0.00">
   </div>
   <div class="ctl">
-    <label>Slice Y <span class="v" id="lbl-y">1.00</span></label>
-    <input type="range" id="sliceY" min="0" max="1" step="0.001" value="1.00">
+    <label>Slice Y <span class="v" id="lbl-y">0.00</span></label>
+    <input type="range" id="sliceY" min="0" max="1" step="0.001" value="0.00">
   </div>
   <div class="ctl">
-    <label>Slice Z <span class="v" id="lbl-z">1.00</span></label>
-    <input type="range" id="sliceZ" min="0" max="1" step="0.001" value="1.00">
+    <label>Slice Z <span class="v" id="lbl-z">0.00</span></label>
+    <input type="range" id="sliceZ" min="0" max="1" step="0.001" value="0.00">
   </div>
   <div class="ctl">
     <label>BVH Depth <span class="v" id="lbl-bvh">40</span></label>
@@ -270,7 +270,7 @@ renderer.setClearColor(0x2a3a55, 1);  // brighter sky-blue background so the mod
 document.body.appendChild(renderer.domElement);
 
 // DEBUG: expose to window for headless diagnosis (no-op in production use)
-const __BUILD_COMMIT = 'tokyo-front-facing-v22';
+const __BUILD_COMMIT = 'revert-to-v19';
 console.info('%c[three-mesh-bvh-xray] build ' + __BUILD_COMMIT, 'color:#ace7bf;font-weight:bold');
 window.__xr = { renderer, scene: null, camera: null, best: null, bvhRoot: null, __build: __BUILD_COMMIT };
 // Expose slice-plane groups for headless verification (toggle handlers read
@@ -888,53 +888,6 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         window.__xr.targetMat = best.material || null;
         updateSliceClipPlanes();
 
-        // Recount total tris across the whole scene for the stats badge
-        let total = 0;
-        pagoda.traverse(obj => {
-          if (obj.isMesh && obj.geometry) {
-            const idx = obj.geometry.index;
-            const pos = obj.geometry.attributes.position;
-            total += idx ? idx.count / 3 : pos.count / 3;
-          }
-        });
-        triCount = total;
-        document.getElementById('s-tris').textContent = total.toLocaleString();
-
-        // Center camera on the new model.
-        //
-        // Orientation: trust the glTF spec (Y-up). The previous code
-        // tried to detect Z-up vs Y-up from the model bbox, but that
-        // heuristic is fundamentally unreliable — a cityscape's
-        // building bbox is roughly cubic (similar X/Y/Z extents), and
-        // ground planes dominate the bbox in many models (LittlestTokyo
-        // has 24 ground planes that make the Z extent look like the
-        // "up" axis). Forcing a -π/2 rotation when the model was
-        // already Y-up lays the whole cityscape on its side. The glTF
-        // 2.0 spec mandates Y-up; if a specific model is Z-up, we can
-        // add a per-model override later. For now, no rotation.
-        const fullBox = new THREE.Box3().setFromObject(pagoda);
-        const center = fullBox.getCenter(new THREE.Vector3());
-        const fullSize = fullBox.getSize(new THREE.Vector3());
-        const md = Math.max(fullSize.x, fullSize.y, fullSize.z);
-        // Camera placement: front-right-above the model, with Y as up.
-        const camTarget = center;
-        // Place camera on the NEGATIVE-X side of the model (in front of the
-        // model's front face), looking toward center.  The old code had an
-        // implicit minus here because it ran after `rotation.x = -π/2` which
-        // moved the camera from the +X side to the -X side.  Without that
-        // rotation we must apply the sign ourselves.
-        // Camera on the +X side of the model, looking inward toward center.
-        // At slice=1 (full model visible), the clip plane at x=max hides nothing.
-        // At slice=0 (cross-section at origin), only x>0 half is visible —
-        // from the +X side that shows the back face of the model.
-        // Y offset 0.4 gives a gentle downward angle (~23°) rather than
-        // the ~49° overhead from the old 0.6 coefficient.
-        camera.position.set(center.x + md * 0.9, center.y + md * 0.4, center.z + md * 0.9);
-        controls.target.copy(camTarget);
-        controls.update();
-        applyFogForModel(fullSize);
-        updateSlicePlanePositions();
-
         // ── MeshBVH cell-box visualization ─────────────────────────────────
         // The "Three.js透视效果" reference is the MeshBVH demo: a sparse grid
         // of colored cell boxes that show how the BVH partitions the model —
@@ -943,14 +896,6 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
         // not just `best.geometry`. That way small accessories — like the
         // Barn's light bulb, which is a separate small mesh with fewer
         // triangles than the barn wall — are still wrapped by BVH cells.
-        //
-        // IMPORTANT: this runs AFTER any scene-level rotation is applied
-        // (or after we've decided not to rotate). collectMergedGeometry()
-        // bakes `obj.matrixWorld` into each sub-geometry's vertices, so
-        // the merged geometry lives in world space at the moment it's
-        // built. Building it before any rotation would leave the BVH in
-        // the un-rotated frame and the wireframe would appear offset
-        // from the visible model after the rotation kicked in.
         const mergedGeom = collectMergedGeometry(pagoda);
         if (mergedGeom) {
           // Free the previous merged geometry (if any). It's not the
@@ -966,6 +911,59 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
 
         window.__xr.wireLines = bvhCells;        // keep console introspection hook
       }
+
+      // Reset slice sliders to 0.0 so the user starts with the model fully
+      // cut away and can drag each slider up to reveal that axis. (Per
+      // "slice 默认值都是0" — earlier we reset to 1.0 which meant the slider
+      // did nothing visible until the user actively dragged it down.)
+      ['sliceX', 'sliceY', 'sliceZ'].forEach(id => {
+        const el = document.getElementById(id);
+        el.value = 0.0;
+        const uniform = 'uSlice' + id[5];
+        u[uniform].value = 0.0;
+        document.getElementById('lbl-' + id.charAt(5).toLowerCase()).textContent = '0.00';
+      });
+      // Apply to clipPlanes immediately so the initial frame is correct
+      // (not just after the first slider drag).
+      updateSlicePlanePositions();
+      updateSliceClipPlanes();
+
+      // Recount total tris across the whole scene for the stats badge
+      let total = 0;
+      pagoda.traverse(obj => {
+        if (obj.isMesh && obj.geometry) {
+          const idx = obj.geometry.index;
+          const pos = obj.geometry.attributes.position;
+          total += idx ? idx.count / 3 : pos.count / 3;
+        }
+      });
+      triCount = total;
+      document.getElementById('s-tris').textContent = total.toLocaleString();
+
+      // Center camera on the new model. Detect Y-up vs Z-up by aspect.
+      const fullBox = new THREE.Box3().setFromObject(pagoda);
+      const center = fullBox.getCenter(new THREE.Vector3());
+      const fullSize = fullBox.getSize(new THREE.Vector3());
+      const isTall = fullSize.y > Math.max(fullSize.x, fullSize.z) * 1.2;
+      let camTarget;
+      if (!isTall) {
+        // Likely Z-up (typical GLTF); rotate the whole scene to Y-up for our slicing grid
+        pagoda.rotation.x = -Math.PI / 2;
+        pagoda.updateMatrixWorld(true);
+        const newBox = new THREE.Box3().setFromObject(pagoda);
+        camTarget = newBox.getCenter(new THREE.Vector3());
+        const newSize = newBox.getSize(new THREE.Vector3());
+        const md = Math.max(newSize.x, newSize.y, newSize.z);
+        camera.position.set(camTarget.x + md * 1.2, camTarget.y + md * 0.8, camTarget.z + md * 1.2);
+      } else {
+        camTarget = center;
+        const md = Math.max(fullSize.x, fullSize.y, fullSize.z);
+        camera.position.set(center.x + md * 0.9, center.y + md * 0.6, center.z + md * 0.9);
+      }
+      controls.target.copy(camTarget);
+      controls.update();
+      applyFogForModel(fullSize);
+      updateSlicePlanePositions();
 
       document.getElementById('loading').classList.add('hidden');
       // Note: we keep #loading in the DOM so subsequent loads can re-show it.
