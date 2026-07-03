@@ -871,29 +871,71 @@ function clearScene() {
   document.getElementById('s-tris').textContent = '—';
 }
 
-// Detect which axis is the model's "up" (height direction) by BBox aspect.
+// Up-axis detection — layered fallback. Each layer is more authoritative
+// than the next; we stop at the first layer that gives a confident answer.
 //
-// Heuristic: the up axis is the one whose extent differs MOST from the
-// average of the other two. This works for the common model shapes:
-//   - Flat cities/buildings (XZ roughly equal horizontal, Y different) → Y
-//   - Standing characters / trees (XZ roughly equal, Y tallest)         → Y
-//   - True Z-up exports (XY roughly equal, Z tallest)                  → Z
-//   - True X-up exports (YZ roughly equal, X tallest)                  → X
-//   - Symmetric shapes (cube / sphere — all extents tie)              → Y
-//                                                                  (Three.js convention)
+//   1. Loader metadata   — FBX / USD / Collada all carry explicit up-axis
+//                          info in the file. The loader can extract it and
+//                          pass it via `loaderMeta.upAxis`. Always trusted.
+//   2. Format convention — every 3D format has a community-default up axis.
+//                          See FORMAT_UP below. Authoritative for spec-
+//                          compliant files; in practice ~30% of community
+//                          GLBs are Z-up (3ds Max / Substance exports).
+//   3. GLB bbox heuristic — glTF has no formal up-axis metadata, so for
+//                          GLB/gltf we layer a confidence-gated bbox check
+//                          on top of the spec default. Only overrides the
+//                          default when the bbox is dramatically asymmetric
+//                          (top-axis deviation ≥ 1.8× second-top). Below
+//                          that threshold we trust the spec to avoid false
+//                          positives on cars/towers/pencils where axis
+//                          length alone doesn't reliably indicate up.
 //
-// The previous "shortest axis = up" version mis-identified:
-//   - True Z-up models with two similar horizontal axes → returned Y (default)
-//   - True X-up models → returned Y (default)
-//   - Tall Y-up characters where X happened to be the shortest → returned X
-// "Most different from the mean of the other two" is the only heuristic
-// that handles BOTH "flat" and "tall" cases without a flag.
-//
-// Edge cases the user must still override via the dropdown:
-//   - Long flat objects (cars: X is the length, but Y is height/up).
-//     The X axis has the largest deviation here, so the heuristic still
-//     returns X — wrong for a car. Manual override is the only fix.
-function detectUpAxis(root) {
+// Edge cases that still need manual override via the dropdown:
+//   - Long flat objects (cars: X is length, but Y is height/up).
+//   - Long thin objects lying horizontally (pencils: Z is length, but
+//     Y is up).
+//   - Perfectly symmetric shapes (cube / sphere — all extents tie).
+const FORMAT_UP = {
+  glb: 'Y', gltf: 'Y',       // glTF 2.0 spec: right-handed, +Y up
+  obj: 'Y', stl: 'Y',        // community convention
+  blend: 'Z', '3ds': 'Y',    // Blender (Z) vs 3ds Max (Y) history
+  fbx: null,                 // read from FBX GlobalSettings.UpAxis
+  usd: null, usda: null, usdc: null,  // read from USD upAxis metadata
+  dae: null,                 // read from Collada <up_axis>
+};
+
+function detectUpAxis(root, format = 'glb', loaderMeta = null) {
+  // 1. Loader metadata (FBX / USD / Collada). Author explicit, always trusted.
+  if (loaderMeta && loaderMeta.upAxis != null) {
+    const u = String(loaderMeta.upAxis).toLowerCase().trim();
+    // Accept "x"/"y"/"z", "X_UP"/"Y_UP"/"Z_UP", or axis numbers 0/1/2.
+    if (u === '0' || u.startsWith('x')) return 'x';
+    if (u === '1' || u.startsWith('y')) return 'y';
+    if (u === '2' || u.startsWith('z')) return 'z';
+  }
+
+  // 2. Format convention. Spec default. `null` in the table means "format
+  //    has explicit metadata but we didn't get any" — fall through to Y.
+  const def = FORMAT_UP[format] ?? 'Y';
+
+  // 3. GLB/gltf only: heuristic override. Spec says Y-up; community GLBs
+  //    disagree sometimes. Only fire when bbox is unambiguously asymmetric.
+  if (format === 'glb' || format === 'gltf') {
+    const override = bboxHeuristic(root);
+    if (override) {
+      console.info(`[upAxis] GLB heuristic override: ${def} → ${override.axis} (deviation ratio ${override.ratio.toFixed(2)} ≥ 1.8)`);
+      return override.axis;
+    }
+  }
+
+  return def;
+}
+
+// BBox "max deviation from mean of other two" — returns the up-axis override
+// only when the top axis's deviation is ≥ 1.8× the second-top axis. Below
+// that threshold we can't tell up from horizontal reliably and should trust
+// the format default. Returns null when not confident.
+function bboxHeuristic(root) {
   const size = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
   const axes = [
     { a: 'x', l: size.x },
@@ -904,12 +946,13 @@ function detectUpAxis(root) {
     const others = axes.filter(o => o.a !== ax.a).map(o => o.l);
     ax.dev = Math.abs(ax.l - (others[0] + others[1]) / 2);
   }
-  // Sort by deviation descending; on tie, prefer 'y' (Three.js default).
-  axes.sort((p, q) => {
-    if (q.dev !== p.dev) return q.dev - p.dev;
-    return p.a === 'y' ? -1 : q.a === 'y' ? 1 : 0;
-  });
-  return axes[0].a;
+  // Top = largest deviation; second = next largest.
+  axes.sort((p, q) => q.dev - p.dev);
+  const [top, second] = axes;
+  if (second.dev <= 0) return null;  // perfectly symmetric — no signal
+  const ratio = top.dev / second.dev;
+  if (ratio >= 1.8) return { axis: top.a, ratio };
+  return null;
 }
 
 // Returns the quaternion needed to rotate a model so its `fromAxis` points
@@ -1100,7 +1143,7 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
       const center = fullBox.getCenter(new THREE.Vector3());
       const fullSize = fullBox.getSize(new THREE.Vector3());
       const upMode = $('upAxis').value;          // 'auto' | 'y' | 'z' | 'x'
-      const upAxis  = upMode === 'auto' ? detectUpAxis(pagoda) : upMode;
+      const upAxis  = upMode === 'auto' ? detectUpAxis(pagoda, 'glb', null) : upMode;
       const quat    = getUpAxisQuat(upAxis);
 
       pagoda.quaternion.copy(quat);
@@ -1150,7 +1193,7 @@ bindSlider('sliceZ', 'uSliceZ', 'lbl-z');
 $('upAxis').addEventListener('change', () => {
   if (!pagoda) return;
   const upMode = $('upAxis').value;
-  const upAxis  = upMode === 'auto' ? detectUpAxis(pagoda) : upMode;
+  const upAxis  = upMode === 'auto' ? detectUpAxis(pagoda, 'glb', null) : upMode;
   const quat    = getUpAxisQuat(upAxis);
   pagoda.quaternion.copy(quat);
   pagoda.updateMatrixWorld(true);
