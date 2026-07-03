@@ -34,33 +34,91 @@
     #header h1 { font-size: 22px; font-weight: 400; letter-spacing: -0.5px; }
     #header .sub { margin-top: 4px; font-size: 12px; color: var(--text-dim); max-width: 380px; line-height: 1.5; }
 
-    /* Drop zone (top-center) — wait, I want it under the header so it's adjacent.
-       Use top-left just below #header. */
-    #dropZone {
-      position: fixed; top: 130px; left: 24px; z-index: 9;
-      width: 320px; padding: 14px 16px;
+    /* Library panel — model management (top-left, below header) */
+    #library {
+      position: fixed; top: 130px; left: 24px; width: 280px; z-index: 9;
       background: var(--panel); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-      border: 1.5px dashed rgba(120, 200, 255, 0.25);
-      border-radius: 12px; color: var(--text-dim);
-      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 16px 14px; font-size: 12px;
+      max-height: calc(100vh - 154px); overflow-y: auto;
+    }
+    #library .title {
+      display: flex; align-items: center; justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      color: var(--accent); letter-spacing: 2px; margin-bottom: 14px; text-transform: uppercase;
+    }
+    #library .title .hint { color: var(--text-dim); font-size: 9px; letter-spacing: 1px; }
+
+    .lib-section { margin-bottom: 12px; }
+    .lib-heading {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; letter-spacing: 1.5px;
+      color: var(--text-dim); text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .lib-list { display: flex; flex-direction: column; gap: 4px; }
+    .lib-empty {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; color: var(--text-dim);
+      padding: 6px 8px; opacity: 0.55;
+    }
+
+    .lib-entry {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 8px; border-radius: 6px;
       cursor: pointer; transition: all 0.15s;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid transparent;
     }
-    #dropZone:hover, #dropZone.dragover {
+    .lib-entry:hover {
+      background: rgba(111, 227, 255, 0.06);
+      border-color: rgba(160, 210, 255, 0.18);
+    }
+    .lib-entry.active {
+      background: rgba(111, 227, 255, 0.12);
       border-color: var(--accent);
-      background: rgba(111, 227, 255, 0.10);
-      color: var(--accent);
-      box-shadow: 0 0 24px rgba(111, 227, 255, 0.18);
     }
-    #dropZone .big { font-size: 14px; color: var(--text); margin-bottom: 4px; }
-    #dropZone .small { font-size: 10px; letter-spacing: 1px; }
-    #dropZone .filename {
-      display: block; margin-top: 6px;
-      color: var(--hot); font-size: 11px;
+    .lib-bullet {
+      color: var(--accent); font-size: 11px;
+      flex-shrink: 0; width: 12px; text-align: center;
+      line-height: 1;
+    }
+    .lib-entry:not(.active) .lib-bullet { color: var(--text-dim); }
+    .lib-info { flex: 1; min-width: 0; }
+    .lib-name {
       font-family: 'Inter', sans-serif;
+      font-size: 12px; color: var(--text);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    #dropZone .filename:empty { display: none; }
-    #fileInput { display: none; }
+    .lib-meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; color: var(--text-dim);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      letter-spacing: 0.5px; margin-top: 1px;
+    }
+    .lib-remove {
+      flex-shrink: 0; width: 22px; height: 22px;
+      border: 1px solid var(--border); border-radius: 4px;
+      background: rgba(0,0,0,0.2); color: var(--text-dim);
+      cursor: pointer; font-size: 13px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; padding: 0;
+      font-family: inherit;
+    }
+    .lib-remove:hover {
+      border-color: var(--hot); color: var(--hot);
+      background: rgba(212, 245, 216, 0.08);
+    }
+
+    /* Active model metadata strip — sits inside #panel under the title */
+    .active-meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; color: var(--text-dim);
+      letter-spacing: 0.5px; line-height: 1.55;
+      margin-bottom: 14px; padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      word-wrap: break-word;
+    }
 
     /* Right-side control panel */
     #panel {
@@ -184,15 +242,33 @@
   <div class="sub">Drop any GLB / GLTF · slice it along X / Y / Z. Vanilla Raycaster takes 50–200 ms per hover on dense meshes; three-mesh-bvh drops it to &lt;1 ms.</div>
 </div>
 
-<div id="dropZone" tabindex="0">
-  <div class="big">⬇  Drop GLB / GLTF here</div>
-  <div class="small">or click to choose a file</div>
-  <span class="filename" id="currentFile"></span>
-  <input type="file" id="fileInput" accept=".glb,.gltf,model/gltf-binary,model/gltf+json">
+<div id="library">
+  <div class="title">
+    Models
+    <span class="hint">click to load</span>
+  </div>
+
+  <div class="lib-section">
+    <div class="lib-heading">Bundled</div>
+    <div id="lib-bundled" class="lib-list"></div>
+  </div>
+
+  <div class="lib-section">
+    <div class="lib-heading">Your uploads</div>
+    <div id="lib-uploads" class="lib-list"></div>
+    <div id="lib-uploads-empty" class="lib-empty">No uploads yet</div>
+  </div>
+
+  <button class="btn primary" id="btnUpload" style="margin-top:10px">+ Upload GLB / GLTF</button>
+  <input type="file" id="fileInput" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" style="display:none">
 </div>
 
 <div id="panel">
-  <div class="title">Params <span class="hint">slice · bvh · light</span></div>
+  <div class="title">
+    Params
+    <span class="hint" id="active-name-hint">—</span>
+  </div>
+  <div class="active-meta" id="active-meta">—</div>
 
   <div class="ctl">
     <label>Slice X <span class="v" id="lbl-x">0.00</span></label>
@@ -233,11 +309,6 @@
   <div class="checkbox-row on" data-key="sliceOn">
     <span>Slice</span>
     <span class="toggle"></span>
-  </div>
-
-  <div style="margin-top:14px; padding-top:10px; border-top: 1px solid var(--border)">
-    <button class="btn primary" id="btnDefault">Load Tokyo Cityscape</button>
-    <button class="btn" id="btnBarn">Load Barn (smaller test)</button>
   </div>
 </div>
 
@@ -1159,6 +1230,18 @@ function loadGLB(source, isFile = false, revokeAfterLoad = false) {
       applyFogForModel(fullSize);
       updateSlicePlanePositions();
 
+      // Sync the library entry with the loaded model's metadata so the
+      // library list and active-meta strip both reflect the new triCount
+      // and detected up axis. Done in one shot here (not after each step)
+      // to avoid triggering intermediate re-renders during load.
+      const activeModel = library.find(m => m.id === activeId);
+      if (activeModel) {
+        activeModel.triCount = triCount;
+        activeModel.upAxis   = upAxis;
+        renderLibrary();
+        renderActiveMeta();
+      }
+
       document.getElementById('loading').classList.add('hidden');
       // Note: we keep #loading in the DOM so subsequent loads can re-show it.
       loading = false;
@@ -1313,88 +1396,187 @@ document.querySelectorAll('.checkbox-row').forEach(row => {
   });
 });
 
-// === Drop zone + file picker ===
-const dropZone = $('dropZone');
-const fileInput = $('fileInput');
-const currentFileEl = $('currentFile');
+// === Model library ===
+// All known models live in a flat list. UI renders the list; clicks call
+// loadFromLibrary() to set the active model + trigger the existing loadGLB().
+//   id        — stable key (bundled: 'tokyo'/'barn'; uploads: 'up_<ts>_<rand>')
+//   name      — display name (file basename without extension for uploads)
+//   kind      — 'bundled' (shipped GLB) | 'upload' (user file via blob URL)
+//   src       — URL for bundled; blob: URL for uploads
+//   format    — 'glb' | 'gltf' (consumed by FORMAT_UP / detectUpAxis)
+//   sizeBytes — known for uploads (File.size); bundled omitted unless we HEAD
+//   triCount  — populated by loadGLB on successful load
+//   upAxis    — populated by loadGLB on successful load (resolved 'y'/'z'/'x')
+const library = [
+  { id: 'tokyo', name: 'LittlestTokyo',      kind: 'bundled', src: 'models/LittlestTokyo.glb',      format: 'glb' },
+  { id: 'barn',  name: 'AnisotropyBarnLamp', kind: 'bundled', src: 'models/AnisotropyBarnLamp.glb', format: 'glb' },
+];
+let activeId = 'tokyo';
 
-dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('keydown', e => {
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
-});
+// Both bundled GLBs sit behind Cache-Control: max-age=600 at the GitHub
+// Pages edge. Appending a per-load timestamp forces unconditional
+// revalidation so users see the GLB we just shipped, not a stale cached
+// copy from a previous deploy.
+const GLB_CACHE_BUST = 'v=' + Date.now();
 
-fileInput.addEventListener('change', e => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  handleFile(file);
-  // Reset the input's value so picking the SAME file twice in a row still
-  // fires `change`. Without this the browser deduplicates identical picks
-  // and the handler is silently skipped on the second try.
-  e.target.value = '';
-});
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1024 / 1024).toFixed(2) + ' MB';
+}
 
-['dragenter', 'dragover'].forEach(ev => {
-  dropZone.addEventListener(ev, e => {
-    e.preventDefault(); e.stopPropagation();
-    dropZone.classList.add('dragover');
+function makeLibraryEntry(m) {
+  const row = document.createElement('div');
+  const isActive = m.id === activeId;
+  row.className = 'lib-entry' + (isActive ? ' active' : '');
+  const metaParts = [m.format.toUpperCase()];
+  if (m.sizeBytes) metaParts.push(fmtBytes(m.sizeBytes));
+  if (m.triCount)  metaParts.push(m.triCount.toLocaleString() + ' tris');
+  if (m.upAxis)    metaParts.push('up=' + m.upAxis);
+  if (m.kind === 'bundled' && !m.triCount) metaParts.push('bundled');
+  row.innerHTML = `
+    <span class="lib-bullet">${isActive ? '●' : '○'}</span>
+    <div class="lib-info">
+      <div class="lib-name"></div>
+      <div class="lib-meta"></div>
+    </div>
+    ${m.kind === 'upload' ? '<button class="lib-remove" title="Remove from library">×</button>' : ''}
+  `;
+  // textContent (not innerHTML) — defends against filenames containing
+  // <, >, & which would otherwise inject HTML through innerHTML above.
+  row.querySelector('.lib-name').textContent = m.name;
+  row.querySelector('.lib-meta').textContent = metaParts.join(' · ');
+  row.addEventListener('click', (e) => {
+    if (e.target.classList.contains('lib-remove')) return;
+    if (m.id === activeId) return;
+    loadFromLibrary(m.id);
   });
-});
-['dragleave', 'drop'].forEach(ev => {
-  dropZone.addEventListener(ev, e => {
-    e.preventDefault(); e.stopPropagation();
-    dropZone.classList.remove('dragover');
+  const rm = row.querySelector('.lib-remove');
+  if (rm) rm.addEventListener('click', (e) => {
+    e.stopPropagation();
+    removeFromLibrary(m.id);
   });
-});
+  return row;
+}
 
-// Whole-window drop is also supported (so users don't have to aim at the small box)
-['dragenter', 'dragover', 'drop'].forEach(ev => {
-  window.addEventListener(ev, e => {
-    if (ev === 'dragover') e.preventDefault();
-  });
-});
+function renderLibrary() {
+  const bundledEl = $('lib-bundled');
+  const uploadsEl = $('lib-uploads');
+  const emptyEl   = $('lib-uploads-empty');
+  bundledEl.replaceChildren();
+  uploadsEl.replaceChildren();
+  for (const m of library.filter(x => x.kind === 'bundled')) {
+    bundledEl.appendChild(makeLibraryEntry(m));
+  }
+  const uploads = library.filter(x => x.kind === 'upload');
+  if (uploads.length === 0) {
+    emptyEl.style.display = '';
+  } else {
+    emptyEl.style.display = 'none';
+    for (const m of uploads) uploadsEl.appendChild(makeLibraryEntry(m));
+  }
+}
 
-dropZone.addEventListener('drop', e => {
-  const file = e.dataTransfer?.files?.[0];
-  if (file) handleFile(file);
-});
+function renderActiveMeta() {
+  const m = library.find(x => x.id === activeId);
+  if (!m) {
+    $('active-name-hint').textContent = '—';
+    $('active-meta').textContent = '—';
+    return;
+  }
+  $('active-name-hint').textContent = m.name;
+  const parts = [m.format.toUpperCase()];
+  if (m.sizeBytes) parts.push(fmtBytes(m.sizeBytes));
+  if (m.triCount)  parts.push(m.triCount.toLocaleString() + ' tris');
+  if (m.upAxis)    parts.push('up=' + m.upAxis);
+  $('active-meta').textContent = parts.join(' · ');
+}
 
-function handleFile(file) {
-  const name = file.name.toLowerCase();
-  if (!name.endsWith('.glb') && !name.endsWith('.gltf')) {
+function loadFromLibrary(id) {
+  const m = library.find(x => x.id === id);
+  if (!m) return;
+  activeId = id;
+  renderLibrary();
+  renderActiveMeta();
+  if (m.kind === 'bundled') {
+    // Cache-buster on URL prevents the GitHub Pages edge from serving a
+    // stale GLB; no revoke needed (bundled URL stays valid for the page
+    // lifetime).
+    loadGLB(`${m.src}?${GLB_CACHE_BUST}`, /*isFile*/ false, /*revokeAfterLoad*/ false);
+  } else {
+    // Uploaded: blob URL stays alive until the entry is removed, so the
+    // user can switch back to it. Revocation is handled in
+    // removeFromLibrary().
+    loadGLB(m.blobUrl, /*isFile*/ true, /*revokeAfterLoad*/ false);
+  }
+}
+
+function addUpload(file) {
+  const lower = file.name.toLowerCase();
+  if (!lower.endsWith('.glb') && !lower.endsWith('.gltf')) {
     alert(`Sorry, "${file.name}" isn't a .glb or .gltf. Try a 3D model exported from Sketchfab / Blender.`);
     return;
   }
-  currentFileEl.textContent = `▶ ${file.name} · ${(file.size / 1024).toFixed(0)} KB`;
-  // GLTFLoader requires a URL/string; blob URL is fine and freed on loadManager.load() success.
+  const ext = lower.split('.').pop();
+  const id  = 'up_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
   const blobUrl = URL.createObjectURL(file);
-  // Tag the URL so the onLoad can revoke it after success
-  loadGLB(blobUrl, /*isFile*/ true, /*revokeAfterLoad*/ true);
+  library.push({
+    id,
+    name: file.name.replace(/\.(glb|gltf)$/i, ''),
+    kind: 'upload',
+    blobUrl,
+    format: ext,
+    sizeBytes: file.size,
+  });
+  // Auto-load — same behaviour as the old "click file → load immediately".
+  loadFromLibrary(id);
 }
 
-// === Default-load buttons ===
-// Both bundled GLBs sit behind Cache-Control: max-age=600 at the GitHub
-// Pages edge. Browsers key their cache on the response URL, but HTTP
-// semantics treat a query string as part of the URL — most browsers
-// DO treat `?v3` as a distinct cache key from the bare path, but
-// there is no guarantee. To be bulletproof, we append a per-build
-// timestamp at module load. Each fresh page load triggers a unique
-// URL → unconditional revalidation. Combined with the GitHub Pages
-// build timestamp, this is enough to be sure users see the GLB we
-// just shipped.
-const GLB_CACHE_BUST = 'v=' + Date.now();
+function removeFromLibrary(id) {
+  const idx = library.findIndex(m => m.id === id);
+  if (idx < 0) return;
+  const m = library[idx];
+  if (m.blobUrl) URL.revokeObjectURL(m.blobUrl);
+  library.splice(idx, 1);
+  if (activeId === id) {
+    // Active was removed — fall back to the first remaining model (or
+    // clear if the library is now empty).
+    if (library.length > 0) {
+      loadFromLibrary(library[0].id);
+    } else {
+      activeId = null;
+      renderLibrary();
+      renderActiveMeta();
+    }
+  } else {
+    renderLibrary();
+  }
+}
 
-$('btnDefault').addEventListener('click', () => {
-  currentFileEl.textContent = '▶ LittlestTokyo.glb · bundled';
-  loadGLB(`models/LittlestTokyo.glb?${GLB_CACHE_BUST}`);
-});
-$('btnBarn').addEventListener('click', () => {
-  currentFileEl.textContent = '▶ AnisotropyBarnLamp.glb · bundled';
-  loadGLB(`models/AnisotropyBarnLamp.glb?${GLB_CACHE_BUST}`);
+// === Upload UI wiring ===
+const fileInput = $('fileInput');
+$('btnUpload').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => {
+  const file = e.target.files?.[0];
+  if (file) addUpload(file);
+  // Reset so picking the SAME file twice in a row still fires `change`.
+  e.target.value = '';
 });
 
-// Auto-load the default
-currentFileEl.textContent = '▶ LittlestTokyo.glb · bundled (default)';
-loadGLB(`models/LittlestTokyo.glb?${GLB_CACHE_BUST}`);
+// === Window-level drag-drop ===
+// Drop anywhere on the viewport — no small target to aim at.
+window.addEventListener('dragenter', e => e.preventDefault());
+window.addEventListener('dragover',  e => e.preventDefault());
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer?.files?.[0];
+  if (file) addUpload(file);
+});
+
+// === Initial render + auto-load ===
+renderLibrary();
+renderActiveMeta();
+loadFromLibrary(activeId);
 
 // === Hover raycast placeholder ===
 const mouse = new THREE.Vector2(-2, -2);
