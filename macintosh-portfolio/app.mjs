@@ -1,5 +1,5 @@
 import { loadConfig, applyConfig } from './configuration.mjs?v=5';
-import { HeroView } from './hero.mjs?v=21';
+import { HeroView } from './hero.mjs?v=22';
 import { ResumeView } from './resume.mjs?v=3';
 
 try {

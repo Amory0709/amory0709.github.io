@@ -107,11 +107,13 @@ test('desktop and mobile focus keep valid framing and resize retains the zoom', 
   h.cameraFocus.set(true, 0, true); h.updateCamera(0);
   assert.ok(Math.abs(h.camera.position.z - 3.65) < 1e-9);
   h.canvas.clientWidth = 390; h.canvas.clientHeight = 500; h.resize();
-  assert.ok(Math.abs(h.camera.position.z - 4.4) < 1e-9);
+  assert.ok(Math.abs(h.camera.position.z - 3.65) < 1e-9, 'phones keep the desktop camera');
+  assert.equal(h.layoutMode, 'row');
+  assert.equal(h.panScene, true);
   assert.equal(h.cameraFocus.value, 1);
   assert.ok(h.camera.aspect > 0);
   h.cameraFocus.set(false, 1, true); h.updateCamera(1);
-  assert.equal(h.camera.position.z, 5.4);
+  assert.equal(h.camera.position.z, 4.65);
 });
 
 test('next and previous remain usable in the close view and wrap around', () => {
@@ -215,7 +217,7 @@ test('manual zoom limits remain bounded and survive desktop/mobile resize', () =
     camera: new THREE.PerspectiveCamera(), cameraFocus: new CameraFocus(), pointer: new THREE.Vector2(),
     reducedMotion: true, floppies: []
   });
-  for (const [width, base] of [[1200, 4.65], [390, 5.4]]) {
+  for (const [width, base] of [[1200, 4.65], [390, 4.65]]) {
     h.canvas.clientWidth = width; h.resize();
     h.cameraFocus.zoom(-10000, 0, true); h.updateCamera(0);
     assert.ok(Math.abs(h.camera.position.z - (base - ZOOM_LIMITS.max)) < 1e-9);

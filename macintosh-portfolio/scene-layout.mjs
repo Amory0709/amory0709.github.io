@@ -10,13 +10,11 @@ export function sceneLayout(width, height) {
 }
 
 export function diskPlacement(index, mode, count = 8) {
-  const scale = mode === 'portrait' || mode === 'carousel' ? 0.30 : mode === 'wide' ? 0.27 : 0.26;
+  const scale = mode === 'portrait' ? 0.30 : mode === 'wide' ? 0.27 : 0.26;
   const columns = Math.min(4, count);
   const rowCount = Math.min(columns, count - Math.floor(index / columns) * columns);
   const sideRows = Math.ceil(count / 2);
-  const position = mode === 'carousel'
-    ? new THREE.Vector3((index - (count - 1) / 2) * .39, scale / 2, 1.55)
-    : mode === 'portrait'
+  const position = mode === 'portrait'
     ? new THREE.Vector3((index % columns - (rowCount - 1) / 2) * 0.39, scale / 2, index < columns ? 1.35 : 2.2)
     : mode === 'wide'
       ? new THREE.Vector3(index < sideRows ? -1.15 : 1.15, .745 + (sideRows - 1) * .185 - (index % sideRows) * .37, 0.7)
@@ -52,10 +50,6 @@ export function sceneCameraFrames(macBounds, homeBounds, insertedBounds, aspect,
   // overview move closer without cropping the row to make the computer larger.
   const overviewTarget = new THREE.Vector3(0, mode === 'wide' ? 0.72 : 0.48, mode === 'portrait' ? 0.55 : 0.3);
   const overviewDirection = new THREE.Vector3(0, mode === 'portrait' ? 0.22 : mode === 'wide' ? 0.11 : 0.17, 1);
-  if (mode === 'carousel') {
-    overviewTarget.copy(macBounds.getCenter(new THREE.Vector3()));
-    overviewDirection.set(0, .08, 1);
-  }
   const focusTarget = macBounds.getCenter(new THREE.Vector3()); focusTarget.y += 0.025;
   const focusDirection = new THREE.Vector3(0, 0.11, 1);
   const frames = {
@@ -92,7 +86,7 @@ export function anchorFarthestView(frames, focus = FAR_REFERENCE_FOCUS) {
 }
 
 /** Closest point on the existing camera path containing the requested bounds. */
-export function projectViewFocus(frames, bounds, aspect, fill = .96) {
+export function projectViewFocus(frames, bounds, aspect, fill = .96, horizontalFill = fill) {
   const camera = new THREE.PerspectiveCamera(30, aspect, .1, 50);
   const corners = bounds.flatMap(boxCorners);
   const contains = focus => {
@@ -100,7 +94,7 @@ export function projectViewFocus(frames, bounds, aspect, fill = .96) {
     camera.position.copy(pose.position); camera.lookAt(pose.target); camera.updateMatrixWorld();
     return corners.every(corner => {
       const point = corner.clone().project(camera);
-      return Math.abs(point.x) <= fill && Math.abs(point.y) <= fill && point.z > -1 && point.z < 1;
+      return Math.abs(point.x) <= horizontalFill && Math.abs(point.y) <= fill && point.z > -1 && point.z < 1;
     });
   };
   let low = 0;

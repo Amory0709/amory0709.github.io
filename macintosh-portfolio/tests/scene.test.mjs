@@ -145,6 +145,19 @@ test('all waiting disks show the label face upright on desktop and mobile', () =
   }
 });
 
+test('mobile panning preserves every desktop disk position, tilt and scale', () => {
+  const h = Object.create(HeroView.prototype);
+  Object.assign(h, { layoutMode: 'row', mobile: false, baseCamera: new THREE.Vector3(0, 1.1, 4.65),
+    floppies: Array.from({ length: 8 }, (_, index) => ({ group: floppy.clone(true), index, state: 'home' })) });
+  const snapshot = () => h.floppies.map(f => ({ position: f.group.position.toArray(), rotation: f.group.quaternion.toArray(), scale: f.group.scale.toArray() }));
+  h.arrangeFloppies();
+  const desktop = snapshot();
+  h.panScene = true;
+  h.arrangeFloppies();
+  assert.deepEqual(snapshot(), desktop);
+  assert.ok(h.floppies.every(f => f.group.visible));
+});
+
 test('inserted disk fits 94% of the real drive width independently of the foreground scale', () => {
   const mac = model('macintosh_128k_computer_1984_trimmed');
   const height = new THREE.Box3().setFromObject(mac).getSize(new THREE.Vector3()).y;
@@ -167,22 +180,23 @@ test('insertion destination matches the saved close composition with the real CR
   mac.updateMatrixWorld(true);
   let screen; mac.traverse(o => { if (o.isMesh && o.material.name === 'Screen') screen = o; });
   const fit = fitFloppyToDrive(screen, floppy);
-  for (const [width,height,override] of [[1222,780],[366,640],[794,265],[366,470,'carousel'],[296,227,'carousel']]) {
+  for (const [width,height,visibleWidth] of [[1222,780],[366,640],[794,265],[1072,684,366],[602,384,296]]) {
     const h = Object.create(HeroView.prototype);
-    const mode = override || sceneLayout(width,height);
+    const mode = visibleWidth ? 'row' : sceneLayout(width,height);
     Object.assign(h, {macBounds:new THREE.Box3().setFromObject(mac),screenBounds:new THREE.Box3().setFromObject(screen),
       floppyBounds:new THREE.Box3().setFromObject(floppy),insertScale:fit.scale,slot:fit.center,
       floppies:Array.from({length:8},(_,index)=>({group:floppy.clone(true),index,state:'home'})),
-      layoutMode:mode,mobile:mode==='portrait'||mode==='carousel',carousel:mode==='carousel',active:-1,baseCamera:new THREE.Vector3(0,1.1,4.65),
+      layoutMode:mode,mobile:mode==='portrait',panScene:!!visibleWidth,viewportWidth:visibleWidth,canvas:{clientHeight:height},
+      active:-1,baseCamera:new THREE.Vector3(0,1.1,4.65),
       camera:new THREE.PerspectiveCamera(30,width/height,.1,50)});
     h.arrangeFloppies(); h.fitSceneCamera();
-    if (mode === 'carousel') assert.ok(h.floppies.every(f => !f.group.visible), 'waiting disks appear only in the scroll tray');
+    assert.ok(h.floppies.every(f => f.group.visible), 'all waiting disks stay in the real 3D scene');
     const pose=cameraPose(h.cameraFrames,h.projectFocus);
     h.camera.position.copy(pose.position);h.camera.lookAt(pose.target);h.camera.updateMatrixWorld();
     const seated=h.floppyBounds.clone().applyMatrix4(new THREE.Matrix4().compose(h.seatedPosition(),
       new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI/2,0,0)),new THREE.Vector3().setScalar(h.insertScale)));
     for (const p of [h.screenBounds,seated].flatMap(boxCorners).map(p=>p.project(h.camera))) {
-      assert.ok(Math.abs(p.x)<=.95001&&Math.abs(p.y)<=.95001,'CRT and inserted disk stay in frame');
+      assert.ok(Math.abs(p.x)<=.95001*(visibleWidth?visibleWidth/width:1)&&Math.abs(p.y)<=.95001,'CRT and inserted disk stay inside the visible window');
     }
     assert.ok(h.projectFocus>0,'insertion moves closer than the overview');
     if(width===1222) {

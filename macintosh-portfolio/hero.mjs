@@ -3,8 +3,8 @@ import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from './vendor/three/addons/environments/RoomEnvironment.js';
 import html2canvas from './vendor/html2canvas.esm.js';
 import { CameraFocus, wheelPixels } from './camera-focus.mjs?v=4';
-import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose, projectViewFocus, anchorFarthestView, FAR_REFERENCE_FOCUS } from './scene-layout.mjs?v=7';
-import { CAROUSEL_QUERY, diskThumbnails, trayLaunchPosition } from './disk-carousel.mjs';
+import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose, projectViewFocus, anchorFarthestView, FAR_REFERENCE_FOCUS } from './scene-layout.mjs?v=8';
+import { MOBILE_PAN_QUERY, sceneStageWidth, resizedScrollLeft } from './mobile-pan.mjs';
 import { ScreenPortal } from './screen-portal.mjs?v=2';
 import { projectScreen } from './project-screen.mjs?v=4';
 import { createProjectLabelTexture, mapLabelGeometry } from './project-label.mjs';
@@ -13,6 +13,8 @@ import { prepareFloppy, mapScreenGeometry, fitFloppyToDrive, pointerNDC, ease } 
 export class HeroView {
   constructor(canvas, projects) {
     this.canvas = canvas;
+    this.viewport = document.getElementById('sceneViewport');
+    this.stage = document.getElementById('sceneStage');
     this.projects = projects;
     this.inner = document.getElementById('screenInner');
     this.status = document.getElementById('sceneStatus');
@@ -26,7 +28,7 @@ export class HeroView {
     this.pointer = new THREE.Vector2();
     this.cameraFocus = new CameraFocus();
     this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    this.carouselQuery = window.matchMedia(CAROUSEL_QUERY);
+    this.panQuery = window.matchMedia(MOBILE_PAN_QUERY);
     try {
       this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     } catch (error) {
@@ -63,7 +65,7 @@ export class HeroView {
     this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
     this.resize();
     this.observer = new ResizeObserver(() => this.resize());
-    this.observer.observe(canvas);
+    this.observer.observe(this.viewport || canvas);
     canvas.addEventListener('pointermove', event => this.onPointerMove(event));
     canvas.addEventListener('pointerleave', () => {
       this.targetPointer.set(0, 0);
@@ -74,6 +76,7 @@ export class HeroView {
     document.getElementById('zoomIn').addEventListener('click', () => this.cameraFocus.zoom(-160, performance.now(), this.reducedMotion));
     document.getElementById('zoomOut').addEventListener('click', () => this.cameraFocus.zoom(160, performance.now(), this.reducedMotion));
     document.getElementById('zoomReset').addEventListener('click', () => {
+      this.centerScene();
       if (this.active !== -1) this.cameraFocus.transition(this.projectFocus, performance.now(), 650, 'auto', this.reducedMotion);
       else this.cameraFocus.set(this.active !== -1, performance.now(), this.reducedMotion);
     });
@@ -105,7 +108,6 @@ export class HeroView {
       const label = document.createElement('span');
       label.textContent = project.title;
       button.append(label);
-      button.style.setProperty('--disk-accent', project.color);
       button.addEventListener('click', () => this.insert(index));
       picker.append(button);
     });
@@ -196,11 +198,19 @@ export class HeroView {
   }
 
   resize() {
-    const { clientWidth: width, clientHeight: height } = this.canvas;
-    if (!width || !height) return;
-    this.carousel = this.carouselQuery?.matches ?? width <= 760;
-    this.layoutMode = this.carousel ? 'carousel' : sceneLayout(width, height);
-    this.mobile = this.carousel || this.layoutMode === 'portrait';
+    const { clientWidth: viewportWidth, clientHeight: height } = this.viewport || this.canvas;
+    if (!viewportWidth || !height) return;
+    this.panScene = this.panQuery?.matches ?? viewportWidth <= 760;
+    const width = sceneStageWidth(viewportWidth, height, this.panScene);
+    const nextMax = Math.max(0, width - viewportWidth);
+    const nextLeft = resizedScrollLeft(this.viewport?.scrollLeft || 0, this.panMax, nextMax);
+    this.panMax = nextMax;
+    this.viewportWidth = viewportWidth;
+    if (this.stage) this.stage.style.width = `${width}px`;
+    // Phones get a scrollable window onto the desktop row, not a new layout.
+    this.layoutMode = this.panScene ? 'row' : sceneLayout(width, height);
+    this.mobile = !this.panScene && this.layoutMode === 'portrait';
+    this.canvas.dataset.mobilePan = String(this.panScene);
     this.canvas.dataset.layoutMode = this.layoutMode;
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
@@ -210,10 +220,10 @@ export class HeroView {
     this.cameraTarget = this.mobile ? new THREE.Vector3(0, 0.45, 0) : new THREE.Vector3(0, 0.55, 0);
     if (this.floppies.length) {
       this.arrangeFloppies();
-      this.prepareDiskTray();
     }
     if (this.macBounds) this.fitSceneCamera();
     this.updateCamera(performance.now());
+    if (this.viewport) this.viewport.scrollLeft = nextLeft;
     // Resizing clears the drawing buffer; do not leave a blank canvas while a
     // mobile browser defers the next animation frame during viewport changes.
     if (this.mac) this.renderer.render(this.scene, this.camera);
@@ -223,16 +233,17 @@ export class HeroView {
     const boundsAt = (position, quaternion, scale) => this.floppyBounds.clone().applyMatrix4(
       new THREE.Matrix4().compose(position, quaternion, new THREE.Vector3().setScalar(scale))
     );
-    const homes = this.carousel ? [] : this.floppies.map(f => boundsAt(f.home, f.homeQuaternion, f.homeScale).expandByScalar(0.05));
+    const homes = this.floppies.map(f => boundsAt(f.home, f.homeQuaternion, f.homeScale).expandByScalar(0.05));
     const inserted = boundsAt(this.seatedPosition(), new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)), this.insertScale);
     this.cameraFrames = sceneCameraFrames(this.macBounds, homes, inserted, this.camera.aspect, this.layoutMode, this.screenBounds);
     const bounds = [this.macBounds, ...homes, inserted];
     // Preserve the saved desktop composition; fit all disks on narrow phones.
-    const anchor = this.carousel ? 0 : this.mobile ? Math.min(FAR_REFERENCE_FOCUS, projectViewFocus(this.cameraFrames, bounds, this.camera.aspect)) : FAR_REFERENCE_FOCUS;
+    const anchor = this.mobile ? Math.min(FAR_REFERENCE_FOCUS, projectViewFocus(this.cameraFrames, bounds, this.camera.aspect)) : FAR_REFERENCE_FOCUS;
     anchorFarthestView(this.cameraFrames, anchor);
     // User-approved insertion view (2026-09-10 21:46): prioritize the CRT
     // and seated disk, not the waiting row or the full computer casing.
-    this.projectFocus = projectViewFocus(this.cameraFrames, [this.screenBounds, inserted], this.camera.aspect, .95);
+    const visibleWidth = this.panScene ? this.viewportWidth / (this.camera.aspect * this.canvas.clientHeight) : 1;
+    this.projectFocus = projectViewFocus(this.cameraFrames, [this.screenBounds, inserted], this.camera.aspect, .95, .95 * visibleWidth);
     if (this.floppies[this.active]?.state === 'inserted') this.cameraFocus.transition(this.projectFocus, performance.now(), 250, 'auto', this.reducedMotion);
   }
 
@@ -241,7 +252,7 @@ export class HeroView {
       const { scale, position } = diskPlacement(index, this.layoutMode || (this.mobile ? 'portrait' : 'row'), this.floppies.length);
       f.homeScale = scale;
       f.home = position;
-      f.group.visible = !this.carousel || f.state !== 'home';
+      f.group.visible = true;
       const facing = Math.atan2(-f.home.x, this.baseCamera.z - f.home.z);
       // The canonical +Z face carries the paper label; keep it toward the viewer.
       f.homeQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, facing + 0.85, 0));
@@ -262,30 +273,9 @@ export class HeroView {
     });
   }
 
-  prepareDiskTray() {
-    if (!this.carousel || !this.diskPicker || this.trayReady) return;
-    this.trayReady = true;
-    try {
-      const images = diskThumbnails(this.floppies, this.scene.environment);
-      images.forEach((src, index) => {
-        const image = document.createElement('img');
-        image.className = 'disk-thumbnail';
-        image.alt = '';
-        image.draggable = false;
-        image.width = 90; image.height = 100;
-        image.src = src;
-        this.diskPicker.children[index].prepend(image);
-      });
-    } catch (error) {
-      // Text buttons remain usable if a device cannot allocate a second context.
-      console.warn('Disk tray thumbnails unavailable.', error);
-    }
-  }
-
-  trayPosition(index) {
-    const button = this.diskPicker?.children[index];
-    if (!this.carousel || !button) return null;
-    return trayLaunchPosition(this.camera, this.canvas.getBoundingClientRect(), button.getBoundingClientRect(), this.slot.z + .4);
+  centerScene() {
+    if (!this.panScene || !this.viewport) return;
+    this.viewport.scrollTo({ left: this.panMax / 2, behavior: this.reducedMotion ? 'instant' : 'smooth' });
   }
 
   async paintScreen() {
@@ -313,6 +303,7 @@ export class HeroView {
 
   onPointerMove(event) {
     if (!this.mac) return;
+    if (this.panScene && event.pointerType === 'touch') return;
     const ndc = pointerNDC(event, this.canvas.getBoundingClientRect());
     this.targetPointer.copy(ndc);
     const hit = this.hit(event);
@@ -370,8 +361,8 @@ export class HeroView {
   }
 
   returnHome(f) {
-    this.move(f, 'ejecting', this.trayPosition(f.index) || f.home.clone(), f.homeQuaternion.clone(), 550, () => {
-      f.state = 'home'; f.group.visible = !this.carousel;
+    this.move(f, 'ejecting', f.home.clone(), f.homeQuaternion.clone(), 550, () => {
+      f.state = 'home'; f.group.visible = true;
     }, 0.10, f.homeScale);
   }
 
@@ -386,9 +377,7 @@ export class HeroView {
     this.actions.hidden = true;
     this.paintScreen();
     const project = this.projects[index], f = this.floppies[index];
-    const launch = this.trayPosition(index);
-    if (launch && f.state === 'home') f.group.position.copy(launch);
-    f.group.visible = true;
+    this.centerScene();
     this.status.textContent = `Loading ${project.title}…`;
     const horizontal = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
     const approach = this.slot.clone().add(new THREE.Vector3(0, 0, 0.24));
