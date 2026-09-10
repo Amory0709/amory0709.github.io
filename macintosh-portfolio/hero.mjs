@@ -5,7 +5,7 @@ import html2canvas from './vendor/html2canvas.esm.js';
 import { CameraFocus, wheelPixels } from './camera-focus.mjs?v=4';
 import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose, projectViewFocus, anchorFarthestView, FAR_REFERENCE_FOCUS } from './scene-layout.mjs?v=6';
 import { ScreenPortal } from './screen-portal.mjs?v=2';
-import { projectScreen } from './project-screen.mjs?v=3';
+import { projectScreen } from './project-screen.mjs?v=4';
 import { createProjectLabelTexture, mapLabelGeometry } from './project-label.mjs';
 import { prepareFloppy, mapScreenGeometry, fitFloppyToDrive, pointerNDC, ease } from './scene-geometry.mjs?v=5';
 
@@ -358,9 +358,11 @@ export class HeroView {
   showProject(index, focusCamera = true) {
     if (focusCamera) this.cameraFocus.transition(this.projectFocus, performance.now(), 1200, 'auto', this.reducedMotion);
     const p = this.projects[index];
-    projectScreen(p).then(() => {
+    const repaint = () => {
       if (this.active === index && !this.portal?.active) this.paintScreen();
-    }).catch(error => console.error('Project preview could not render.', error));
+    };
+    projectScreen(p, document, { onArtworkReady: repaint }).then(repaint)
+      .catch(error => console.error('Project preview could not render.', error));
     this.inner.classList.add('has-project');
     this.status.textContent = p.title;
     const link = document.getElementById('activeProjectLink');

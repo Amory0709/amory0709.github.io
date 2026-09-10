@@ -72,3 +72,51 @@ test('missing or CORS-blocked artwork shows its description instead of a broken 
   assert.equal(doc.getElementById('artworkFallback').hidden, false);
   assert.equal(doc.getElementById('artworkFallback').textContent, project.screen.image.alt);
 });
+
+test('root entry resolves image URLs against the template base before rasterization', async () => {
+  const { doc, project } = fixture();
+  doc.baseURI = 'https://portfolio.example/macintosh-portfolio/';
+  await projectScreen(project, doc);
+  assert.equal(doc.getElementById('projectArtwork').src, 'https://portfolio.example/macintosh-portfolio/preview.png');
+  assert.equal(doc.getElementById('projectArtwork').hidden, false);
+});
+
+test('slow images recover after the loading deadline and repaint the CRT', async () => {
+  const { doc, project } = fixture();
+  const artwork = doc.getElementById('projectArtwork');
+  let finish, repaints = 0;
+  artwork.decode = () => new Promise(resolve => { finish = resolve; });
+  await projectScreen(project, doc, { imageTimeout: 0, onArtworkReady: () => repaints++ });
+  assert.equal(doc.getElementById('artworkFallback').textContent, 'Loading preview…');
+  finish();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(artwork.hidden, false);
+  assert.equal(doc.getElementById('artworkFallback').hidden, true);
+  assert.equal(artwork.style.width, '200px');
+  assert.equal(repaints, 1);
+});
+
+test('a late failure replaces the loading notice with the configured fallback', async () => {
+  const { doc, project } = fixture();
+  let fail, repaints = 0;
+  doc.getElementById('projectArtwork').decode = () => new Promise((_, reject) => { fail = reject; });
+  await projectScreen(project, doc, { imageTimeout: 0, onArtworkReady: () => repaints++ });
+  fail(new Error('Network error'));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(doc.getElementById('artworkFallback').textContent, project.screen.image.alt);
+  assert.equal(repaints, 1);
+});
+
+test('late images cannot overwrite a newer project, even when the image URL is reused', async () => {
+  const { doc, project } = fixture();
+  const artwork = doc.getElementById('projectArtwork');
+  let finish, repaints = 0;
+  artwork.decode = () => new Promise(resolve => { finish = resolve; });
+  await projectScreen(project, doc, { imageTimeout: 0, onArtworkReady: () => repaints++ });
+  artwork.decode = async () => { throw new Error('Latest request failed'); };
+  await projectScreen(project, doc);
+  finish();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(artwork.hidden, true);
+  assert.equal(repaints, 0);
+});

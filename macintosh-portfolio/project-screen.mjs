@@ -3,8 +3,10 @@ export const SCREEN_DEFAULTS = Object.freeze({
   image: { src: '', alt: '', fit: 'contain' }
 });
 
-/** Apply editable text/artwork before rasterizing the real CRT surface. */
-export async function projectScreen(project, doc = document) {
+const artworkRequests = new WeakMap();
+
+/** Render promptly on slow connections, then repaint when the image arrives. */
+export async function projectScreen(project, doc = document, { onArtworkReady = () => {}, imageTimeout = 6000 } = {}) {
   const settings = project.screen || SCREEN_DEFAULTS;
   const card = doc.getElementById('projectCard');
   for (const [name, value] of [['title', settings.titleSize], ['description', settings.descriptionSize], ['button', settings.buttonSize]]) {
@@ -18,19 +20,21 @@ export async function projectScreen(project, doc = document) {
   const artwork = doc.getElementById('projectArtwork');
   const fallback = doc.getElementById('artworkFallback');
   const image = settings.image;
+  const request = {};
+  artworkRequests.set(artwork, request);
+  const isCurrent = () => artworkRequests.get(artwork) === request;
   for (const property of ['position', 'width', 'height', 'left', 'top']) artwork.style[property] = '';
   card.classList.toggle('without-artwork', !image.src);
   doc.getElementById('pcCover').dataset.fit = image.fit;
   artwork.alt = image.alt; artwork.hidden = false; fallback.hidden = true;
   if (!image.src) { artwork.removeAttribute('src'); return; }
   artwork.crossOrigin = 'anonymous';
-  artwork.src = image.src;
+  // Keep the URL stable when html2canvas clones a root page using a base tag.
+  artwork.src = doc.baseURI ? new URL(image.src, doc.baseURI).href : image.src;
   let timeout;
-  try {
-    await Promise.race([artwork.decode(), new Promise((_, reject) => {
-      timeout = setTimeout(() => reject(new Error('Preview image timed out')), 6000);
-    })]);
-    if (artwork.getAttribute('src') !== image.src) return;
+  const showArtwork = () => {
+    if (!isCurrent()) return;
+    artwork.hidden = false; fallback.hidden = true;
     if (image.fit !== 'concept') {
       // html2canvas does not implement object-fit. Resolve its geometry before
       // rasterizing the CRT so custom landscape/portrait images never stretch.
@@ -41,11 +45,32 @@ export async function projectScreen(project, doc = document) {
       Object.assign(artwork.style, { position: 'absolute', width: `${width}px`, height: `${height}px`,
         left: `${(cover.clientWidth-width)/2}px`, top: `${(cover.clientHeight-height)/2}px` });
     }
-  } catch {
-    // Do not silently drop a CORS-blocked or missing preview from the texture.
-    if (artwork.getAttribute('src') !== image.src) return;
+  };
+  const showFallback = (loading = false) => {
+    if (!isCurrent()) return;
     artwork.hidden = true; fallback.hidden = false;
-    fallback.textContent = image.alt || 'Preview unavailable';
+    fallback.textContent = loading ? 'Loading preview…' : image.alt || 'Preview unavailable';
+  };
+  const decoded = artwork.decode();
+  try {
+    const ready = await Promise.race([decoded.then(() => true), new Promise(resolve => {
+      timeout = setTimeout(() => resolve(false), imageTimeout);
+    })]);
+    if (!isCurrent()) return;
+    if (ready) showArtwork();
+    else {
+      showFallback(true);
+      // A timeout is not a failed image. Recover without requiring reinsertion.
+      decoded.then(() => {
+        if (!isCurrent()) return;
+        showArtwork(); onArtworkReady();
+      }, () => {
+        if (!isCurrent()) return;
+        showFallback(); onArtworkReady();
+      });
+    }
+  } catch {
+    showFallback();
   } finally {
     clearTimeout(timeout);
   }
