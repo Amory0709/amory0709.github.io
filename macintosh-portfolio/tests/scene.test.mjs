@@ -98,6 +98,24 @@ test('insertion presents label side up and shutter edge toward the drive', () =>
   assert.ok(new THREE.Vector3(0, 1, 0).applyQuaternion(q).distanceTo(new THREE.Vector3(0, 0, -1)) < 1e-8);
 });
 
+test('all waiting disks show the requested opposite face upright on desktop and mobile', () => {
+  const h = Object.create(HeroView.prototype);
+  h.floppies = Array.from({ length: 8 }, (_, index) => ({ group: floppy.clone(true), index, state: 'home' }));
+  for (const mobile of [false, true]) {
+    h.mobile = mobile;
+    h.baseCamera = new THREE.Vector3(0, mobile ? 1.5 : 1.1, mobile ? 5.4 : 4.65);
+    h.arrangeFloppies();
+    for (const f of h.floppies) {
+      const displayFace = new THREE.Vector3(0, 0, -1).applyQuaternion(f.homeQuaternion);
+      const toCamera = h.baseCamera.clone().sub(f.home); toCamera.y = 0; toCamera.normalize();
+      assert.ok(displayFace.dot(toCamera) > 0.65, `disk ${f.index} shows the requested face`);
+      assert.ok(new THREE.Vector3(0, 1, 0).applyQuaternion(f.homeQuaternion).distanceTo(new THREE.Vector3(0, 1, 0)) < 1e-8);
+      assert.ok(f.group.quaternion.angleTo(f.homeQuaternion) < 1e-7);
+      assert.equal(f.group.scale.x, mobile ? 0.30 : 0.26);
+    }
+  }
+});
+
 test('inserted disk fits 94% of the real drive width independently of the foreground scale', () => {
   const mac = model('macintosh_128k_computer_1984_trimmed');
   const height = new THREE.Box3().setFromObject(mac).getSize(new THREE.Vector3()).y;

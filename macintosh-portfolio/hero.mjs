@@ -173,7 +173,9 @@ export class HeroView {
         ? new THREE.Vector3((index % 4 - 1.5) * 0.39, scale / 2, index < 4 ? 1.35 : 2.20)
         : new THREE.Vector3(-1.02 + index * 2.04 / 7, scale / 2, 2.05);
       const facing = Math.atan2(-f.home.x, this.baseCamera.z - f.home.z);
-      f.homeQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, facing + 0.85, 0));
+      // Show the opposite face in the waiting row, keeping the shutter upright.
+      // The drive approach has its own orientation and must not inherit this flip.
+      f.homeQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, facing + 0.85 + Math.PI, 0));
       if (f.state === 'home') {
         f.group.scale.setScalar(f.homeScale);
         f.group.position.copy(f.home);
