@@ -15,6 +15,16 @@ const copy = () => ({ ...structuredClone(raw), navigation: [
   { label: 'Contact', href: '$email', screen: true }
 ] });
 
+test('live disks and next/previous navigation follow newest-to-oldest project order', () => {
+  const live = normalizeConfig(JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8')));
+  assert.deepEqual(live.projects.map(p => p.title), [
+    'WhatIf Studio', 'SLB 100 Family Day', 'MeshBVH X-Ray', 'High Performance Points',
+    '2024 IDPwD', 'Sound of Humanity', 'Electoral Map', 'BLUEbikes Availability'
+  ]);
+  assert.equal(live.projects.find(p => p.title === 'SLB 100 Family Day').color, '#66bb6a');
+  assert.equal(live.projects.find(p => p.title === 'WhatIf Studio').color, '#0014dc');
+});
+
 test('the shipped configuration preserves all eight projects and resolves shared email', () => {
   const config = normalizeConfig(raw);
   assert.equal(config.projects.length, 8);

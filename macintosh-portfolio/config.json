@@ -41,6 +41,77 @@
   },
   "projects": [
     {
+      "title": "WhatIf Studio",
+      "color": "#0014dc",
+      "desc": "An SLB Family Day portrait experience. Explore the interactive gallery and face-swap interface; this frontend preview does not run the AI service.",
+      "link": "https://amory0709.github.io/what-if-studio/",
+      "screen": {
+        "image": { "src": "./assets/projects/what-if-studio.png", "alt": "WhatIf Studio — interactive portrait gallery, frontend preview", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "url": "/what-if-studio/",
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "SLB 100 Family Day",
+      "color": "#66bb6a",
+      "desc": "An interactive 3D Family Day experience with single-player and two-player modes, bilingual guidance and camera-based gesture challenges.",
+      "link": "https://amory0709.github.io/SLB100FamilyDay/docs/",
+      "screen": {
+        "image": { "src": "./assets/projects/slb100-family-day.png", "alt": "SLB 100 Family Day — Move it Move it interactive 3D experience", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "MeshBVH X-Ray",
+      "color": "#507aba",
+      "desc": "Cross-section viewer for massive 3D meshes using BVH-accelerated raycasting. Slices through millions of triangles in real time.",
+      "link": "https://amory0709.github.io/three-mesh-bvh-xray/",
+      "screen": {
+        "image": { "src": "./assets/projects/mesh-bvh-xray.png", "alt": "MeshBVH X-Ray — LittlestTokyo model with BVH wireframe and slice controls", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "High Performance Points",
+      "color": "#c56699",
+      "desc": "A browser-based volume renderer built with Angular and Three.js, designed to explore large datasets interactively.",
+      "link": "https://amory0709.github.io/high-performance-points/",
+      "screen": {
+        "image": { "src": "./assets/projects/high-performance-points.png", "alt": "High Performance Points — volumetric data visualization", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "2024 IDPwD",
+      "color": "#2a2a2a",
+      "desc": "An interactive experience created for the 2024 International Day of Persons with Disabilities.",
+      "link": "https://amory0709.github.io/2024IDPwD/",
+      "screen": {
+        "image": { "src": "./assets/projects/2024-idpwd.png", "alt": "2024 International Day of Persons with Disabilities — interactive experience", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
       "title": "Sound of Humanity",
       "color": "#e53935",
       "desc": "A data visualization of births, deaths and population change across the United States, with adjustable simulation speed.",
@@ -75,77 +146,6 @@
       "link": "https://amory0709.github.io/datavis/BLUEbikes/",
       "screen": {
         "image": { "src": "./assets/projects/bluebikes.png", "alt": "BLUEbikes — Boston bike-sharing station map", "fit": "cover" }
-      },
-      "embed": {
-        "enabled": true,
-        "width": 1300,
-        "height": 980
-      }
-    },
-    {
-      "title": "SLB 100 Family Day",
-      "color": "#66bb6a",
-      "desc": "An interactive 3D Family Day experience with single-player and two-player modes, bilingual guidance and camera-based gesture challenges.",
-      "link": "https://amory0709.github.io/SLB100FamilyDay/docs/",
-      "screen": {
-        "image": { "src": "./assets/projects/slb100-family-day.png", "alt": "SLB 100 Family Day — Move it Move it interactive 3D experience", "fit": "cover" }
-      },
-      "embed": {
-        "enabled": true,
-        "width": 1300,
-        "height": 980
-      }
-    },
-    {
-      "title": "MeshBVH X-Ray",
-      "color": "#507aba",
-      "desc": "Cross-section viewer for massive 3D meshes using BVH-accelerated raycasting. Slices through millions of triangles in real time.",
-      "link": "https://amory0709.github.io/three-mesh-bvh-xray/",
-      "screen": {
-        "image": { "src": "./assets/projects/mesh-bvh-xray.png", "alt": "MeshBVH X-Ray — LittlestTokyo model with BVH wireframe and slice controls", "fit": "cover" }
-      },
-      "embed": {
-        "enabled": true,
-        "width": 1300,
-        "height": 980
-      }
-    },
-    {
-      "title": "WhatIf Studio",
-      "color": "#0014dc",
-      "desc": "An SLB Family Day portrait experience. Explore the interactive gallery and face-swap interface; this frontend preview does not run the AI service.",
-      "link": "https://amory0709.github.io/what-if-studio/",
-      "screen": {
-        "image": { "src": "./assets/projects/what-if-studio.png", "alt": "WhatIf Studio — interactive portrait gallery, frontend preview", "fit": "cover" }
-      },
-      "embed": {
-        "enabled": true,
-        "url": "/what-if-studio/",
-        "width": 1300,
-        "height": 980
-      }
-    },
-    {
-      "title": "High Performance Points",
-      "color": "#c56699",
-      "desc": "A browser-based volume renderer built with Angular and Three.js, designed to explore large datasets interactively.",
-      "link": "https://amory0709.github.io/high-performance-points/",
-      "screen": {
-        "image": { "src": "./assets/projects/high-performance-points.png", "alt": "High Performance Points — volumetric data visualization", "fit": "cover" }
-      },
-      "embed": {
-        "enabled": true,
-        "width": 1300,
-        "height": 980
-      }
-    },
-    {
-      "title": "2024 IDPwD",
-      "color": "#2a2a2a",
-      "desc": "An interactive experience created for the 2024 International Day of Persons with Disabilities.",
-      "link": "https://amory0709.github.io/2024IDPwD/",
-      "screen": {
-        "image": { "src": "./assets/projects/2024-idpwd.png", "alt": "2024 International Day of Persons with Disabilities — interactive experience", "fit": "cover" }
       },
       "embed": {
         "enabled": true,
