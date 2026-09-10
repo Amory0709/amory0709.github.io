@@ -9,6 +9,7 @@ import { ScreenPortal } from './screen-portal.mjs?v=2';
 import { projectScreen } from './project-screen.mjs?v=5';
 import { createProjectLabelTexture, mapLabelGeometry } from './project-label.mjs';
 import { setSceneLoadState } from './scene-loading.mjs';
+import { DesktopResume } from './desktop-resume.mjs';
 import { prepareFloppy, mapScreenGeometry, fitFloppyToDrive, pointerNDC, ease } from './scene-geometry.mjs?v=5';
 
 export class HeroView {
@@ -65,6 +66,9 @@ export class HeroView {
     floor.receiveShadow = true;
     this.scene.add(floor);
     this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+    this.desktopResume = new DesktopResume(this.inner, document.getElementById('desktopResume'),
+      () => document.getElementById('resumeButton').click(),
+      () => this.paintScreen().catch(error => console.error('Desktop could not repaint.', error)));
     this.resize();
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(this.viewport || canvas);
@@ -101,10 +105,14 @@ export class HeroView {
     canvas.addEventListener('keydown', event => {
       if (!this.floppies.length) return;
       if (['ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        this.desktopResume.clear();
         event.preventDefault();
         this.setHovered((Math.max(0, this.hovered) + (event.key === 'ArrowRight' ? 1 : this.projects.length - 1)) % this.projects.length);
       }
       if (event.key === 'Enter' || event.key === ' ') {
+        if (this.active === -1 && this.desktopResume.selected) {
+          event.preventDefault(); this.desktopResume.open(); return;
+        }
         event.preventDefault(); this.insert(Math.max(0, this.hovered));
       }
     });
@@ -365,7 +373,8 @@ export class HeroView {
     this.targetPointer.copy(ndc);
     const hit = this.hit(event);
     this.setHovered(hit?.object.userData.floppyIndex ?? -1);
-    this.canvas.style.cursor = hit && (this.hovered !== -1 || hit.object === this.screen && this.active !== -1) ? 'pointer' : 'default';
+    const resumeHit = this.active === -1 && hit?.object === this.screen && this.desktopResume?.hit(hit.uv);
+    this.canvas.style.cursor = resumeHit || hit && (this.hovered !== -1 || hit.object === this.screen && this.active !== -1) ? 'pointer' : 'default';
   }
 
   onWheel(event) {
@@ -389,6 +398,12 @@ export class HeroView {
   onClick(event) {
     if (!this.mac) return;
     const hit = this.hit(event);
+    if (this.active === -1 && hit?.object === this.screen &&
+      this.desktopResume?.click(hit.uv, performance.now(), event.detail)) {
+      this.status.textContent = 'Resume selected · double-click or press Enter to open.';
+      return;
+    }
+    this.desktopResume?.clear();
     const index = hit?.object.userData.floppyIndex;
     if (index !== undefined) { this.insert(index); return; }
     if (hit?.object === this.screen && this.active !== -1 && hit.uv) {
@@ -425,6 +440,7 @@ export class HeroView {
 
   insert(index) {
     if (!this.floppies[index]) return;
+    this.desktopResume?.clear();
     this.closeProject(false);
     if (this.active === index) { this.eject(); return; }
     this.cameraFocus.set(false, performance.now(), this.reducedMotion);
@@ -465,6 +481,7 @@ export class HeroView {
   }
 
   eject() {
+    this.desktopResume?.clear();
     this.closeProject(false);
     this.cameraFocus.set(false, performance.now(), this.reducedMotion);
     if (this.active === -1) return;

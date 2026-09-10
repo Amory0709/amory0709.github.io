@@ -92,4 +92,10 @@ test('icon-only resume trigger retains a configurable accessible name and toolti
   assert.equal(view.button.textContent,undefined,'initialization does not overwrite the SVG');
   const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
   assert.match(html, /id="resumeButton"[^>]*aria-haspopup="dialog"[^>]*><svg/);
+  const desktop = view.doc.getElementById('desktopResume');
+  assert.equal(desktop.hidden, false);
+  assert.equal(desktop['aria-label'], 'CV');
+  new ResumeView({ ...view.config, enabled: false }, view.doc);
+  assert.equal(desktop.hidden, true);
+  assert.equal(view.button.hidden, true);
 });

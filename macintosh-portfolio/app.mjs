@@ -1,6 +1,6 @@
 import { loadConfig, applyConfig } from './configuration.mjs?v=6';
-import { HeroView } from './hero.mjs?v=25';
-import { ResumeView } from './resume.mjs?v=3';
+import { HeroView } from './hero.mjs?v=26';
+import { ResumeView } from './resume.mjs?v=4';
 import { setSceneLoadState } from './scene-loading.mjs';
 
 try {

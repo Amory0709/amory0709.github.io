@@ -24,6 +24,11 @@ export class ResumeView {
     this.status = doc.getElementById('resumeStatus');
     this.button.setAttribute('aria-label', config.label);
     this.button.title = config.label; this.button.hidden = !config.enabled;
+    const desktopFile = doc.getElementById('desktopResume');
+    if (desktopFile) {
+      desktopFile.hidden = !config.enabled;
+      desktopFile.setAttribute('aria-label', config.label);
+    }
     this.button.addEventListener('click', () => { this.dialog.showModal(); this.select(this.language); });
     for (const language of ['zh', 'en']) doc.getElementById(`resume-${language}`).addEventListener('click', () => this.select(language));
     doc.getElementById('resumeClose').addEventListener('click', () => this.dialog.close());
