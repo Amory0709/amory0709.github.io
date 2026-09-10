@@ -1,4 +1,4 @@
-import { SCREEN_DEFAULTS } from './project-screen.mjs';
+import { SCREEN_DEFAULTS } from './project-screen.mjs?v=5';
 const BASE = 'https://portfolio.invalid/';
 
 function number(value, fallback, field, min, max) {

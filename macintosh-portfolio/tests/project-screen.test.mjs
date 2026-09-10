@@ -52,6 +52,25 @@ test('portrait and cover previews have explicit undistorted dimensions for the C
   assert.equal(image.style.top,'-52px');
 });
 
+test('fullscreen intro fills the entire background even with a legacy contain setting', async () => {
+  const { doc, project } = fixture();
+  doc.getElementById('pcCover').dataset.presentation = 'fullscreen';
+  await projectScreen(project, doc);
+  const image = doc.getElementById('projectArtwork');
+  assert.equal(doc.getElementById('pcCover').dataset.fit, 'cover');
+  assert.equal(image.style.height, '396px');
+  assert.ok(parseFloat(image.style.width) > 200);
+});
+
+test('switching to missing artwork clears the preceding frosted layer', async () => {
+  const { doc, project } = fixture();
+  const frost = doc.getElementById('projectFrost');
+  frost.hidden = false;
+  project.screen.image.src = '';
+  await projectScreen(project, doc);
+  assert.equal(frost.hidden, true);
+});
+
 test('no artwork uses full-width text; a disabled embed alone does not show a dead button', async () => {
   const { doc, project } = fixture();
   project.screen.image.src = '';

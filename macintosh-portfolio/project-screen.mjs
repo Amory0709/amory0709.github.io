@@ -1,5 +1,7 @@
+import { paintFrostedArtwork } from './frosted-artwork.mjs';
+
 export const SCREEN_DEFAULTS = Object.freeze({
-  titleSize: 40, descriptionSize: 17, buttonSize: 18, buttonText: 'View project',
+  titleSize: 48, descriptionSize: 22, buttonSize: 22, buttonText: 'View project',
   image: { src: '', alt: '', fit: 'contain' }
 });
 
@@ -19,13 +21,17 @@ export async function projectScreen(project, doc = document, { onArtworkReady = 
   button.hidden = project.link === '#' && !(project.embed?.enabled && project.embed.url);
   const artwork = doc.getElementById('projectArtwork');
   const fallback = doc.getElementById('artworkFallback');
+  const frost = doc.getElementById('projectFrost');
+  if (frost) frost.hidden = true;
   const image = settings.image;
   const request = {};
   artworkRequests.set(artwork, request);
   const isCurrent = () => artworkRequests.get(artwork) === request;
   for (const property of ['position', 'width', 'height', 'left', 'top']) artwork.style[property] = '';
   card.classList.toggle('without-artwork', !image.src);
-  doc.getElementById('pcCover').dataset.fit = image.fit;
+  const cover = doc.getElementById('pcCover');
+  const fit = cover.dataset.presentation === 'fullscreen' ? 'cover' : image.fit;
+  cover.dataset.fit = fit;
   artwork.alt = image.alt; artwork.hidden = false; fallback.hidden = true;
   if (!image.src) { artwork.removeAttribute('src'); return; }
   artwork.crossOrigin = 'anonymous';
@@ -35,15 +41,19 @@ export async function projectScreen(project, doc = document, { onArtworkReady = 
   const showArtwork = () => {
     if (!isCurrent()) return;
     artwork.hidden = false; fallback.hidden = true;
-    if (image.fit !== 'concept') {
+    if (fit !== 'concept') {
       // html2canvas does not implement object-fit. Resolve its geometry before
       // rasterizing the CRT so custom landscape/portrait images never stretch.
       const cover = doc.getElementById('pcCover');
-      const scale = (image.fit === 'cover' ? Math.max : Math.min)(
+      const scale = (fit === 'cover' ? Math.max : Math.min)(
         cover.clientWidth / artwork.naturalWidth, cover.clientHeight / artwork.naturalHeight);
       const width = artwork.naturalWidth * scale, height = artwork.naturalHeight * scale;
       Object.assign(artwork.style, { position: 'absolute', width: `${width}px`, height: `${height}px`,
         left: `${(cover.clientWidth-width)/2}px`, top: `${(cover.clientHeight-height)/2}px` });
+    }
+    if (frost?.getContext) {
+      try { paintFrostedArtwork(frost, artwork, cover); }
+      catch { frost.hidden = true; } // The translucent glass remains readable if pixel access is unavailable.
     }
   };
   const showFallback = (loading = false) => {

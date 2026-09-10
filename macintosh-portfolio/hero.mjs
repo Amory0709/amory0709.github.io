@@ -6,7 +6,7 @@ import { CameraFocus, wheelPixels } from './camera-focus.mjs?v=4';
 import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose, projectViewFocus, anchorFarthestView, FAR_REFERENCE_FOCUS } from './scene-layout.mjs?v=8';
 import { MOBILE_PAN_QUERY, sceneStageWidth, resizedScrollLeft } from './mobile-pan.mjs';
 import { ScreenPortal } from './screen-portal.mjs?v=2';
-import { projectScreen } from './project-screen.mjs?v=4';
+import { projectScreen } from './project-screen.mjs?v=5';
 import { createProjectLabelTexture, mapLabelGeometry } from './project-label.mjs';
 import { prepareFloppy, mapScreenGeometry, fitFloppyToDrive, pointerNDC, ease } from './scene-geometry.mjs?v=5';
 

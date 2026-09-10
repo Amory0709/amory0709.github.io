@@ -539,6 +539,21 @@
     #artworkFallback { padding: 18px; font: 18px/1.4 sans-serif; }
     .without-artwork .pc-right { display: none; }
     .without-artwork .pc-desc { flex: 1; padding-top: 12px; }
+    /* Full-bleed artwork, raster-safe frosted glass, then crisp foreground copy. */
+    .project-card { inset: 0; padding: 0; gap: 0; border: 0; border-radius: 0; background: #dce3ed; }
+    .pc-background { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+    .pc-background .pc-cover { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .pc-frost { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+    .pc-frost[hidden] { display: none; }
+    .pc-glass { position: absolute; inset: 0; z-index: 2; background: linear-gradient(115deg, rgba(248,250,255,.86), rgba(248,250,255,.60) 65%, rgba(248,250,255,.36)); }
+    .pc-content { position: relative; z-index: 3; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 22px; min-height: 0; height: 100%; padding: 44px 48px; }
+    .pc-content .pc-title { font-size: var(--screen-title-size, 48px); line-height: 1.05; border: 0; padding: 0; margin: 0; max-width: 100%; letter-spacing: -.035em; color: #101623; }
+    .pc-content .pc-desc { flex: 0 0 auto; padding: 0; max-width: 500px; font-size: var(--screen-description-size, 22px); line-height: 1.4; color: #263244; }
+    .pc-content .pc-cta { align-self: flex-start; margin: 6px 0 0; padding: 14px 22px; font-size: var(--screen-button-size, 22px); border: 1px solid #152133; border-radius: 28px; background: #152133; color: #fff; box-shadow: none; }
+    .pc-content .pc-cta:hover { background: #263a55; }
+    .pc-content .pc-cta:focus-visible { outline: 3px solid #152133; outline-offset: 4px; }
+    .without-artwork .pc-background { background: linear-gradient(135deg, #dae4f4, #f1e7df); }
+    #artworkFallback { position: absolute; right: 20px; bottom: 14px; padding: 0; font-size: 14px; color: #354256; }
     .header-actions { --icon-gap: 8px; grid-column: 3; display: flex; align-items: center; justify-content: flex-end; gap: var(--icon-gap); min-width: 0; }
     .header-actions .socials { display: flex; flex-wrap: nowrap; max-width: none; gap: var(--icon-gap); }
     .header-actions .socials a { flex: 0 0 32px; width: 32px; min-width: 32px; height: 32px; padding: 0; justify-content: center; }
@@ -640,16 +655,19 @@
 
             <!-- Active state: project card (rendered when a floppy is inserted) -->
             <div class="project-card" id="projectCard">
+              <div class="pc-background">
+                <div class="pc-cover" id="pcCover" data-presentation="fullscreen"><img id="projectArtwork" alt=""></div>
+              </div>
+              <canvas class="pc-frost" id="projectFrost" aria-hidden="true" hidden></canvas>
+              <div class="pc-glass" aria-hidden="true"></div>
+              <div class="pc-content">
               <div class="pc-row1" id="projectNavigation" hidden>
 <span class="pc-nav" id="screenNav"></span>
               </div>
               <div class="pc-title" id="pcTitle">—</div>
-              <div class="pc-body">
-                <div class="pc-right">
-                  <div class="pc-cover" id="pcCover"><img id="projectArtwork" alt=""><span id="artworkFallback" hidden>Preview unavailable</span></div>
-                </div>
                 <div class="pc-desc" id="pcDesc">—</div>
                 <button class="pc-cta" id="pcCta" type="button" tabindex="-1">View project →</button>
+                <span id="artworkFallback" hidden>Preview unavailable</span>
               </div>
             </div>
 
@@ -718,7 +736,7 @@
   }
   </script>
 
-  <script type="module" src="./app.mjs?v=16"></script>
+  <script type="module" src="./app.mjs?v=17"></script>
   <noscript><p class="startup-error">Please enable JavaScript to load this 3D portfolio.</p></noscript>
 
 </body>
