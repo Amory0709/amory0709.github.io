@@ -84,7 +84,7 @@
     },
     {
       "title": "SLB 100 Family Day",
-      "color": "#66bb6a",
+      "color": "#0014dc",
       "desc": "An interactive 3D Family Day experience with single-player and two-player modes, bilingual guidance and camera-based gesture challenges.",
       "link": "https://amory0709.github.io/SLB100FamilyDay/docs/",
       "screen": {
@@ -112,7 +112,7 @@
     },
     {
       "title": "WhatIf Studio",
-      "color": "#785489",
+      "color": "#0014dc",
       "desc": "An SLB Family Day portrait experience. Explore the interactive gallery and face-swap interface; this frontend preview does not run the AI service.",
       "link": "https://amory0709.github.io/what-if-studio/",
       "screen": {
