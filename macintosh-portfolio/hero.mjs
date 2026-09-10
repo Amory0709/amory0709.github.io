@@ -3,6 +3,7 @@ import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from './vendor/three/addons/environments/RoomEnvironment.js';
 import html2canvas from './vendor/html2canvas.esm.js';
 import { CameraFocus, wheelPixels } from './camera-focus.mjs?v=2';
+import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose } from './scene-layout.mjs';
 import { createProjectLabelTexture, mapLabelGeometry } from './project-label.mjs';
 import { prepareFloppy, mapScreenGeometry, fitFloppyToDrive, pointerNDC, ease } from './scene-geometry.mjs?v=5';
 
@@ -55,7 +56,7 @@ export class HeroView {
     floor.position.y = -0.001;
     floor.receiveShadow = true;
     this.scene.add(floor);
-    this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 15);
+    this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
     this.resize();
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(canvas);
@@ -65,7 +66,10 @@ export class HeroView {
       this.setHovered(-1);
     });
     canvas.addEventListener('click', event => this.onClick(event));
-    canvas.addEventListener('wheel', event => this.onWheel(event), { passive: false });
+    document.querySelector('.page').addEventListener('wheel', event => this.onWheel(event), { passive: false });
+    document.getElementById('zoomIn').addEventListener('click', () => this.cameraFocus.zoom(-160, performance.now(), this.reducedMotion));
+    document.getElementById('zoomOut').addEventListener('click', () => this.cameraFocus.zoom(160, performance.now(), this.reducedMotion));
+    document.getElementById('zoomReset').addEventListener('click', () => this.cameraFocus.set(this.active !== -1, performance.now(), this.reducedMotion));
     document.getElementById('ejectButton').addEventListener('click', () => this.eject());
     document.getElementById('previousProject').addEventListener('click', () => this.cycleProject(-1));
     document.getElementById('nextProject').addEventListener('click', () => this.cycleProject(1));
@@ -124,11 +128,13 @@ export class HeroView {
       this.scene.add(this.mac);
       this.mac.updateMatrixWorld(true);
       if (!this.screen) throw new Error('The supplied Mac is missing its CRT mesh.');
+      this.macBounds = new THREE.Box3().setFromObject(this.mac);
       this.screen.geometry = mapScreenGeometry(this.screen);
       this.screen.material = new THREE.MeshBasicMaterial({ color: '#151615', toneMapped: false });
       this.screen.castShadow = false;
       this.screen.receiveShadow = false;
       const template = prepareFloppy(floppyGLTF.scene);
+      this.floppyBounds = new THREE.Box3().setFromObject(template);
       const paper = template.getObjectByName('etiquette');
       if (paper) {
         const originalPaperGeometry = paper.geometry;
@@ -156,7 +162,7 @@ export class HeroView {
         this.scene.add(group);
         this.floppies.push({ group, index, motion: null, state: 'home' });
       });
-      this.arrangeFloppies();
+      this.resize();
       await this.paintScreen();
       this.status.textContent = 'Select a disk to explore a project.';
       this.canvas.dataset.loadState = 'ready';
@@ -168,23 +174,34 @@ export class HeroView {
 
   resize() {
     const { clientWidth: width, clientHeight: height } = this.canvas;
-    this.mobile = width < 640;
+    if (!width || !height) return;
+    this.layoutMode = sceneLayout(width, height);
+    this.mobile = this.layoutMode === 'portrait';
+    this.canvas.dataset.layoutMode = this.layoutMode;
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.baseCamera = this.mobile ? new THREE.Vector3(0, 1.5, 5.4) : new THREE.Vector3(0, 1.10, 4.65);
     this.cameraTarget = this.mobile ? new THREE.Vector3(0, 0.45, 0) : new THREE.Vector3(0, 0.55, 0);
-    this.updateCamera(performance.now());
     if (this.floppies.length) this.arrangeFloppies();
+    if (this.macBounds) this.fitSceneCamera();
+    this.updateCamera(performance.now());
+  }
+
+  fitSceneCamera() {
+    const boundsAt = (position, quaternion, scale) => this.floppyBounds.clone().applyMatrix4(
+      new THREE.Matrix4().compose(position, quaternion, new THREE.Vector3().setScalar(scale))
+    );
+    const homes = this.floppies.map(f => boundsAt(f.home, f.homeQuaternion, f.homeScale).expandByScalar(0.05));
+    const inserted = boundsAt(this.seatedPosition(), new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)), this.insertScale);
+    this.cameraFrames = sceneCameraFrames(this.macBounds, homes, inserted, this.camera.aspect, this.layoutMode);
   }
 
   arrangeFloppies() {
     this.floppies.forEach((f, index) => {
-      const scale = this.mobile ? 0.30 : 0.26;
+      const { scale, position } = diskPlacement(index, this.layoutMode || (this.mobile ? 'portrait' : 'row'));
       f.homeScale = scale;
-      f.home = this.mobile
-        ? new THREE.Vector3((index % 4 - 1.5) * 0.39, scale / 2, index < 4 ? 1.35 : 2.20)
-        : new THREE.Vector3(-1.02 + index * 2.04 / 7, scale / 2, 2.05);
+      f.home = position;
       const facing = Math.atan2(-f.home.x, this.baseCamera.z - f.home.z);
       // The canonical +Z face carries the paper label; keep it toward the viewer.
       f.homeQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, facing + 0.85, 0));
@@ -238,11 +255,13 @@ export class HeroView {
   }
 
   onWheel(event) {
-    // Preserve browser zoom shortcuts, horizontal gestures, and normal page scroll.
+    // Preserve browser zoom shortcuts and independently scrollable accessibility panels.
     if (!this.mac || !event.cancelable || event.ctrlKey || event.metaKey || event.shiftKey ||
-      Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+      Math.abs(event.deltaX) >= Math.abs(event.deltaY) ||
+      event.target?.closest?.('.credit-block, .accessible-picker')) return;
     const delta = wheelPixels(event.deltaY, event.deltaMode, this.canvas.clientHeight);
-    if (this.cameraFocus.zoom(delta, performance.now(), this.reducedMotion)) event.preventDefault();
+    event.preventDefault();
+    this.cameraFocus.zoom(delta, performance.now(), this.reducedMotion);
   }
 
   setHovered(index) {
@@ -347,10 +366,17 @@ export class HeroView {
 
   updateCamera(time) {
     const focus = this.cameraFocus.update(time, this.reducedMotion);
-    this.camera.position.copy(this.baseCamera);
-    this.camera.position.z -= focus;
-    const target = this.cameraTarget.clone();
-    target.y += focus * (this.mobile ? 0.20 : 0.18);
+    let target;
+    if (this.cameraFrames) {
+      const pose = cameraPose(this.cameraFrames, focus);
+      this.camera.position.copy(pose.position);
+      target = pose.target;
+    } else {
+      this.camera.position.copy(this.baseCamera);
+      this.camera.position.z -= focus;
+      target = this.cameraTarget.clone();
+      target.y += focus * (this.mobile ? 0.20 : 0.18);
+    }
     if (!this.reducedMotion) {
       this.camera.position.x += this.pointer.x * 0.065;
       this.camera.position.y += this.pointer.y * 0.035;

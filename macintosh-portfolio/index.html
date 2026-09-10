@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Alex Morgan · Designer & Developer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='14' fill='%23f5f5f5'/%3E%3Crect x='20' y='14' width='60' height='50' rx='4' fill='%23e8e0d0' stroke='%23111' stroke-width='2'/%3E%3Crect x='26' y='22' width='48' height='32' rx='2' fill='%23c8c8c8'/%3E%3Crect x='50' y='66' width='30' height='4' fill='%23111'/%3E%3C/svg%3E" />
   <style>
@@ -438,6 +438,61 @@
       .hero-canvas-wrap { aspect-ratio: 0.78; }
       .footer .credit-block { max-width: 100%; }
     }
+    /* The scene takes the remaining viewport, never a fixed aspect-ratio height. */
+    html, body { height: 100%; min-height: 0; overflow: hidden; overscroll-behavior: none; }
+    .page {
+      --gutter: clamp(12px, 3vw, 40px);
+      height: 100vh; height: 100dvh; min-height: 0;
+      display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+      padding: env(safe-area-inset-top, 0px) max(var(--gutter), env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(var(--gutter), env(safe-area-inset-left, 0px));
+    }
+    .header { height: auto; min-width: 0; align-items: center; padding: clamp(12px, 2.5vh, 25px) 0; gap: 20px; flex-wrap: nowrap; }
+    .brand { font-size: clamp(20px, 2.2vw, 28px); }
+    .brand-sub { font-size: clamp(11px, 1.3vw, 16px); }
+    .nav { transform: none; margin: 0; gap: clamp(14px, 3vw, 44px); }
+    .nav a { display: inline-flex; align-items: center; min-height: 32px; }
+    .socials { margin: 0; gap: 20px; }
+    .socials a { min-height: 32px; }
+    .hero { width: 100%; margin: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; align-items: stretch; }
+    .hero-canvas-wrap { min-height: 0; min-width: 0; height: 100%; aspect-ratio: auto; }
+    .hero-3d { touch-action: none; }
+    .scene-controls { width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; padding: 8px 0; }
+    #sceneStatus { min-width: 0; line-height: 1.4; overflow-wrap: anywhere; }
+    .project-actions-slot { min-height: 40px; }
+    #projectActions:not([hidden]) { flex-wrap: nowrap; gap: 10px; height: 40px; }
+    #projectActions button, #activeProjectLink { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
+    #activeProjectLink[hidden] { display: none; }
+    #previousProject, #nextProject { min-width: 36px; font-size: 20px; }
+    .zoom-controls { display: flex; gap: 4px; }
+    .zoom-controls button { width: 40px; height: 40px; border: 1px solid #dedede; border-radius: 6px; font-size: 20px; background: #fafafa; }
+    .zoom-controls button:hover { background: #ececec; }
+    .footer { position: relative; margin: 0; padding: 8px 0; flex-direction: row; align-items: center; gap: 12px; font-size: 10px; }
+    .model-credits { margin-left: auto; flex-shrink: 0; }
+    .model-credits summary { cursor: pointer; padding: 5px 0; }
+    .footer .credit-block { position: absolute; bottom: calc(100% + 8px); right: 0; width: min(440px, 100%); max-width: none; max-height: 50dvh; overflow: auto; padding: 16px; gap: 8px; background: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 6px 24px #0001; color: #555; z-index: 10; }
+    .accessible-picker:focus-within { position: absolute; inset: auto 0 64px; width: 100%; max-height: 45%; overflow: auto; background: #fafafa; border: 1px solid #ccc; z-index: 8; }
+    @media (max-width: 760px) {
+      .scene-controls { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'status zoom' 'actions actions'; gap: 4px 8px; }
+      #sceneStatus { grid-area: status; }
+      .zoom-controls { grid-area: zoom; }
+      .project-actions-slot { grid-area: actions; }
+      .accessible-picker:focus-within { bottom: 104px; }
+      kbd { display: none; }
+    }
+    @media (max-width: 639px) {
+      .header { flex-wrap: wrap; gap: 4px; padding: 12px 0 4px; }
+      .brand-sub { display: block; margin-top: 4px; }
+      .nav { width: 100%; margin: 0; justify-content: space-between; }
+      .footer { font-size: 9px; gap: 8px; }
+    }
+    @media (max-height: 500px) and (min-width: 640px) {
+      .header { padding: 5px 0; }
+      .brand-sub { display: none; }
+      .socials { display: none; }
+      .scene-controls { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: 'status actions zoom'; padding: 4px 0; }
+      .footer { padding: 1px 0; }
+      .accessible-picker:focus-within { bottom: 52px; }
+    }
   </style>
 </head>
 <body>
@@ -529,11 +584,16 @@
       </div>
       <div class="scene-controls">
         <p id="sceneStatus" role="status" aria-live="polite">Loading the Macintosh…</p>
-        <div id="projectActions" hidden>
-          <button id="previousProject" type="button" aria-label="Previous project">← Previous</button>
-          <button id="nextProject" type="button" aria-label="Next project">Next →</button>
+        <div class="project-actions-slot"><div id="projectActions" hidden>
+          <button id="previousProject" type="button" aria-label="Previous project">←</button>
+          <button id="nextProject" type="button" aria-label="Next project">→</button>
           <a id="activeProjectLink" target="_blank" rel="noopener">View project ↗</a>
           <button id="ejectButton" type="button">Eject disk <kbd>Esc</kbd></button>
+        </div></div>
+        <div class="zoom-controls" role="group" aria-label="Camera zoom">
+          <button id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out">−</button>
+          <button id="zoomReset" type="button" aria-label="Reset zoom" title="Reset zoom">↺</button>
+          <button id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in">+</button>
         </div>
       </div>
       <nav id="projectPicker" class="accessible-picker" aria-label="Choose a project disk"></nav>
@@ -541,11 +601,11 @@
 
     <!-- =================== FOOTER =================== -->
     <footer class="footer">
-      <div class="credit-block">
+      <div>© Seaseahan · Respect to Steve Jobs</div>
+      <details class="model-credits"><summary>Model credits</summary><div class="credit-block">
         <span><b>Mac:</b> "Macintosh 128K Computer (1984)" by <a href="https://skfb.ly/6SLnE" target="_blank" rel="noopener">Daz</a> · <a href="http://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a></span>
         <span><b>Floppy:</b> "Floppy Disk 3.5&quot;" by <a href="https://skfb.ly/Jnrs" target="_blank" rel="noopener">Kyan0s</a> · <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></span>
-      </div>
-      <div>© Seaseahan · Respect to Steve Jobs</div>
+      </div></details>
     </footer>
 
   </div>
@@ -560,7 +620,7 @@
   </script>
 
   <script type="module">
-    import { HeroView } from './hero.mjs?v=9';
+    import { HeroView } from './hero.mjs?v=10';
 
     /* =========================================================
        Project data — drives screen content + per-floppy color

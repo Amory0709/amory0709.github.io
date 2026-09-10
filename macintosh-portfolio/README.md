@@ -17,7 +17,9 @@ Then open `http://localhost:4173`. Click a colored floppy to insert it into the 
 
 After insertion, the camera smoothly moves closer to the CRT and holds that view. Ejecting returns to the overview. Use Previous / Next below the canvas to switch projects while zoomed in. Camera motion is interruptible, survives responsive resize, and becomes immediate when reduced motion is enabled. The demo recorder now reuses this same interaction instead of applying its own zoom choreography.
 
-Scroll over the 3D canvas to zoom: wheel up moves closer, wheel down moves farther away. Mouse wheels and trackpads share a smooth, bounded range (desktop camera Z: 3.45–5.10; mobile: 4.20–5.85). At either limit, continued scrolling in that direction scrolls the page normally; outside the canvas, scrolling is unaffected. Browser zoom shortcuts and horizontal gestures are not intercepted. Manual input takes over an automatic camera move without a jump. Escape restores the overview even when no disk is inserted; insertion/ejection still restore their usual framing.
+Scroll over the page to zoom: wheel up moves closer, wheel down moves farther away. Scrolling remains captured at both zoom limits. Browser zoom shortcuts and horizontal gestures are not intercepted; the model-credit popup and keyboard project picker retain independent scrolling. Manual input takes over an automatic camera move without a jump. Escape restores the overview even when no disk is inserted; insertion/ejection still restore their usual framing. The − / reset / + buttons also work on touch devices.
+
+The page uses a fixed dynamic viewport height (`100dvh`, with `100vh` fallback), safe-area insets, and a remaining-space canvas. The camera fits actual model bounds to the canvas aspect ratio: eight disks in one row normally, two rows in portrait, or four disks on each side on short landscape screens. Overview includes all eight disks; close-up fits the Mac and inserted disk, while waiting disks can move outside the close-up frame. Camera distances are derived from the available space, not fixed desktop/mobile Z values. Model attribution remains available in the footer's Model credits popup.
 
 Do not open `index.html` directly with `file://`: browsers restrict loading GLB assets and ES modules there. Runtime libraries are vendored locally; no CDN or build step is required.
 
@@ -37,7 +39,7 @@ Do not open `index.html` directly with `file://`: browsers restrict loading GLB 
 npm test
 ```
 
-Twenty-seven geometry/animation tests cover real GLB transforms, per-project label colors/titles, independent textures, title wrapping, UV orientation and clearance, waiting-disk facing, inserted width, scale interpolation, rapid switching, camera focus/reversal, reduced motion, responsive resize, project navigation, wheel normalization, zoom limits, manual takeover, and scroll handoff. Browser QA captures remain in the original local development workspace.
+Thirty-four geometry/animation tests cover real GLB transforms, per-project labels, UV orientation and clearance, inserted width, interrupted motion, camera focus, reduced motion, project navigation, wheel normalization, boundary scroll capture, and perspective containment at six canvas sizes. Browser QA captures remain in the original local development workspace.
 
 ## Personalize
 

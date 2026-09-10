@@ -129,7 +129,7 @@ test('wheel zoom is frame-rate independent and reduced motion is immediate', () 
   assert.equal(a.zoom(NaN, 200), false);
 });
 
-test('canvas wheel handler consumes only eligible zoom gestures', () => {
+test('page wheel handler consumes zoom gestures even at both boundaries', () => {
   const h = Object.create(HeroView.prototype);
   Object.assign(h, { mac: {}, canvas: { clientHeight: 800 }, cameraFocus: new CameraFocus(), reducedMotion: true });
   let prevented = 0;
@@ -139,8 +139,11 @@ test('canvas wheel handler consumes only eligible zoom gestures', () => {
   h.onWheel({ ...event, deltaX: 200 }); h.onWheel({ ...event, cancelable: false });
   assert.equal(prevented, 1, 'browser shortcuts and horizontal gestures are untouched');
   h.cameraFocus.zoom(-10000, 0, true);
-  h.onWheel(event); assert.equal(prevented, 1, 'page scrolling is allowed at the zoom boundary');
-  h.mac = null; h.onWheel({ ...event, deltaY: 100 }); assert.equal(prevented, 1);
+  h.onWheel(event); assert.equal(prevented, 2, 'page scrolling stays disabled at the zoom boundary');
+  h.cameraFocus.zoom(10000, 0, true);
+  h.onWheel({ ...event, deltaY: 100 }); assert.equal(prevented, 3);
+  h.onWheel({ ...event, target: { closest: () => ({}) } }); assert.equal(prevented, 3, 'credits retain independent scrolling');
+  h.mac = null; h.onWheel({ ...event, deltaY: 100 }); assert.equal(prevented, 3);
 });
 
 test('Escape resets a manually zoomed overview even without an inserted disk', () => {
