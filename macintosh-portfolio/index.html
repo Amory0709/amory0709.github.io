@@ -569,6 +569,37 @@
       .resume-toolbar button, .resume-toolbar a { min-height: 44px; padding: 0 10px; }
       .resume-status { padding: 10px 12px; }
     }
+    .disk-tray { display: contents; }
+    .mobile-disk-hint, .disk-thumbnail { display: none; }
+    @media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
+      .hero { grid-template-rows: minmax(0, 1fr) auto auto; }
+      .hero-canvas-wrap { grid-row: 1; }
+      .disk-tray { display: block; grid-row: 2; min-width: 0; border-top: 1px solid #e5e5e3; }
+      .scene-controls { grid-row: 3; }
+      .mobile-disk-hint { display: flex; justify-content: space-between; margin: 8px 2px 2px; font-size: 10px; color: #777; letter-spacing: .03em; }
+      .accessible-picker, .accessible-picker:focus-within {
+        position: static; inset: auto; clip-path: none; width: 100%; height: auto; max-height: none;
+        display: flex; flex-wrap: nowrap; gap: 10px; padding: 4px 2px 8px; border: 0; background: transparent;
+        overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x;
+        scroll-snap-type: x proximity; scroll-padding-inline: 2px; scrollbar-width: thin;
+        scrollbar-color: #b5b5b1 transparent; -webkit-overflow-scrolling: touch;
+      }
+      .accessible-picker button {
+        flex: 0 0 96px; min-width: 0; min-height: 132px; display: flex; flex-direction: column;
+        align-items: center; justify-content: flex-start; gap: 2px; padding: 3px 2px 5px;
+        border: 1px solid transparent; border-radius: 6px; background: transparent; scroll-snap-align: start;
+        color: #333; font-size: 10px; line-height: 1.25; white-space: normal; user-select: none; -webkit-user-select: none;
+      }
+      .accessible-picker button span { display: block; max-width: 100%; overflow-wrap: anywhere; }
+      .accessible-picker button[aria-pressed='true'] { border-color: var(--disk-accent, #777); background: #eeeee9; }
+      .accessible-picker button:focus-visible { outline: 2px solid #333; outline-offset: -2px; }
+      .disk-thumbnail { display: block; width: 90px; height: 100px; object-fit: contain; pointer-events: none; }
+    }
+    @media (max-height: 600px) and (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
+      .accessible-picker button { flex-basis: 80px; min-height: 88px; font-size: 9px; }
+      .disk-thumbnail { width: 54px; height: 60px; }
+      .mobile-disk-hint { margin-top: 3px; }
+    }
   </style>
 </head>
 <body>
@@ -654,7 +685,10 @@
           <button id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in">+</button>
         </div>
       </div>
-      <nav id="projectPicker" class="accessible-picker" aria-label="Choose a project disk"></nav>
+      <div class="disk-tray">
+        <p id="mobileDiskHint" class="mobile-disk-hint"><span>Choose a disk</span><span>Swipe to explore →</span></p>
+        <nav id="projectPicker" class="accessible-picker" aria-label="Choose a project disk" aria-describedby="mobileDiskHint"></nav>
+      </div>
     </section>
 
     <!-- =================== FOOTER =================== -->
@@ -696,7 +730,7 @@
   }
   </script>
 
-  <script type="module" src="./app.mjs?v=13"></script>
+  <script type="module" src="./app.mjs?v=14"></script>
   <noscript><p class="startup-error">Please enable JavaScript to load this 3D portfolio.</p></noscript>
 
 </body>

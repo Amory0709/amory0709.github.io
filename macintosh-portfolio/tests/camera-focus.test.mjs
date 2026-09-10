@@ -194,6 +194,10 @@ test('page wheel handler consumes zoom gestures even at both boundaries', () => 
   h.cameraFocus.zoom(10000, 0, true);
   h.onWheel({ ...event, deltaY: 100 }); assert.equal(prevented, 3);
   h.onWheel({ ...event, target: { closest: () => ({}) } }); assert.equal(prevented, 3, 'credits retain independent scrolling');
+  const beforeTrayScroll = h.cameraFocus.value;
+  h.onWheel({ ...event, target: { closest: selector => selector.includes('.accessible-picker') ? {} : null } });
+  assert.equal(prevented, 3, 'scrolling the mobile disk tray stays native');
+  assert.equal(h.cameraFocus.value, beforeTrayScroll, 'scrolling the tray cannot zoom the computer');
   h.mac = null; h.onWheel({ ...event, deltaY: 100 }); assert.equal(prevented, 3);
 });
 

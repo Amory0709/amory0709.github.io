@@ -167,15 +167,16 @@ test('insertion destination matches the saved close composition with the real CR
   mac.updateMatrixWorld(true);
   let screen; mac.traverse(o => { if (o.isMesh && o.material.name === 'Screen') screen = o; });
   const fit = fitFloppyToDrive(screen, floppy);
-  for (const [width,height] of [[1222,780],[366,640],[794,265]]) {
+  for (const [width,height,override] of [[1222,780],[366,640],[794,265],[366,470,'carousel'],[296,227,'carousel']]) {
     const h = Object.create(HeroView.prototype);
-    const mode = sceneLayout(width,height);
+    const mode = override || sceneLayout(width,height);
     Object.assign(h, {macBounds:new THREE.Box3().setFromObject(mac),screenBounds:new THREE.Box3().setFromObject(screen),
       floppyBounds:new THREE.Box3().setFromObject(floppy),insertScale:fit.scale,slot:fit.center,
       floppies:Array.from({length:8},(_,index)=>({group:floppy.clone(true),index,state:'home'})),
-      layoutMode:mode,mobile:mode==='portrait',active:-1,baseCamera:new THREE.Vector3(0,1.1,4.65),
+      layoutMode:mode,mobile:mode==='portrait'||mode==='carousel',carousel:mode==='carousel',active:-1,baseCamera:new THREE.Vector3(0,1.1,4.65),
       camera:new THREE.PerspectiveCamera(30,width/height,.1,50)});
     h.arrangeFloppies(); h.fitSceneCamera();
+    if (mode === 'carousel') assert.ok(h.floppies.every(f => !f.group.visible), 'waiting disks appear only in the scroll tray');
     const pose=cameraPose(h.cameraFrames,h.projectFocus);
     h.camera.position.copy(pose.position);h.camera.lookAt(pose.target);h.camera.updateMatrixWorld();
     const seated=h.floppyBounds.clone().applyMatrix4(new THREE.Matrix4().compose(h.seatedPosition(),

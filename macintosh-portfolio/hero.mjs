@@ -3,7 +3,8 @@ import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from './vendor/three/addons/environments/RoomEnvironment.js';
 import html2canvas from './vendor/html2canvas.esm.js';
 import { CameraFocus, wheelPixels } from './camera-focus.mjs?v=4';
-import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose, projectViewFocus, anchorFarthestView, FAR_REFERENCE_FOCUS } from './scene-layout.mjs?v=6';
+import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose, projectViewFocus, anchorFarthestView, FAR_REFERENCE_FOCUS } from './scene-layout.mjs?v=7';
+import { CAROUSEL_QUERY, diskThumbnails, trayLaunchPosition } from './disk-carousel.mjs';
 import { ScreenPortal } from './screen-portal.mjs?v=2';
 import { projectScreen } from './project-screen.mjs?v=4';
 import { createProjectLabelTexture, mapLabelGeometry } from './project-label.mjs';
@@ -25,6 +26,7 @@ export class HeroView {
     this.pointer = new THREE.Vector2();
     this.cameraFocus = new CameraFocus();
     this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.carouselQuery = window.matchMedia(CAROUSEL_QUERY);
     try {
       this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     } catch (error) {
@@ -95,9 +97,15 @@ export class HeroView {
       }
     });
     const picker = document.getElementById('projectPicker');
+    this.diskPicker = picker;
     projects.forEach((project, index) => {
       const button = document.createElement('button');
-      button.textContent = project.title;
+      button.type = 'button';
+      button.setAttribute('aria-pressed', 'false');
+      const label = document.createElement('span');
+      label.textContent = project.title;
+      button.append(label);
+      button.style.setProperty('--disk-accent', project.color);
       button.addEventListener('click', () => this.insert(index));
       picker.append(button);
     });
@@ -190,8 +198,9 @@ export class HeroView {
   resize() {
     const { clientWidth: width, clientHeight: height } = this.canvas;
     if (!width || !height) return;
-    this.layoutMode = sceneLayout(width, height);
-    this.mobile = this.layoutMode === 'portrait';
+    this.carousel = this.carouselQuery?.matches ?? width <= 760;
+    this.layoutMode = this.carousel ? 'carousel' : sceneLayout(width, height);
+    this.mobile = this.carousel || this.layoutMode === 'portrait';
     this.canvas.dataset.layoutMode = this.layoutMode;
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
@@ -199,21 +208,27 @@ export class HeroView {
     this.sceneDirty = true;
     this.baseCamera = this.mobile ? new THREE.Vector3(0, 1.5, 5.4) : new THREE.Vector3(0, 1.10, 4.65);
     this.cameraTarget = this.mobile ? new THREE.Vector3(0, 0.45, 0) : new THREE.Vector3(0, 0.55, 0);
-    if (this.floppies.length) this.arrangeFloppies();
+    if (this.floppies.length) {
+      this.arrangeFloppies();
+      this.prepareDiskTray();
+    }
     if (this.macBounds) this.fitSceneCamera();
     this.updateCamera(performance.now());
+    // Resizing clears the drawing buffer; do not leave a blank canvas while a
+    // mobile browser defers the next animation frame during viewport changes.
+    if (this.mac) this.renderer.render(this.scene, this.camera);
   }
 
   fitSceneCamera() {
     const boundsAt = (position, quaternion, scale) => this.floppyBounds.clone().applyMatrix4(
       new THREE.Matrix4().compose(position, quaternion, new THREE.Vector3().setScalar(scale))
     );
-    const homes = this.floppies.map(f => boundsAt(f.home, f.homeQuaternion, f.homeScale).expandByScalar(0.05));
+    const homes = this.carousel ? [] : this.floppies.map(f => boundsAt(f.home, f.homeQuaternion, f.homeScale).expandByScalar(0.05));
     const inserted = boundsAt(this.seatedPosition(), new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)), this.insertScale);
     this.cameraFrames = sceneCameraFrames(this.macBounds, homes, inserted, this.camera.aspect, this.layoutMode, this.screenBounds);
     const bounds = [this.macBounds, ...homes, inserted];
     // Preserve the saved desktop composition; fit all disks on narrow phones.
-    const anchor = this.mobile ? Math.min(FAR_REFERENCE_FOCUS, projectViewFocus(this.cameraFrames, bounds, this.camera.aspect)) : FAR_REFERENCE_FOCUS;
+    const anchor = this.carousel ? 0 : this.mobile ? Math.min(FAR_REFERENCE_FOCUS, projectViewFocus(this.cameraFrames, bounds, this.camera.aspect)) : FAR_REFERENCE_FOCUS;
     anchorFarthestView(this.cameraFrames, anchor);
     // User-approved insertion view (2026-09-10 21:46): prioritize the CRT
     // and seated disk, not the waiting row or the full computer casing.
@@ -226,6 +241,7 @@ export class HeroView {
       const { scale, position } = diskPlacement(index, this.layoutMode || (this.mobile ? 'portrait' : 'row'), this.floppies.length);
       f.homeScale = scale;
       f.home = position;
+      f.group.visible = !this.carousel || f.state !== 'home';
       const facing = Math.atan2(-f.home.x, this.baseCamera.z - f.home.z);
       // The canonical +Z face carries the paper label; keep it toward the viewer.
       f.homeQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, facing + 0.85, 0));
@@ -244,6 +260,32 @@ export class HeroView {
         f.motion.to.copy(this.seatedPosition());
       }
     });
+  }
+
+  prepareDiskTray() {
+    if (!this.carousel || !this.diskPicker || this.trayReady) return;
+    this.trayReady = true;
+    try {
+      const images = diskThumbnails(this.floppies, this.scene.environment);
+      images.forEach((src, index) => {
+        const image = document.createElement('img');
+        image.className = 'disk-thumbnail';
+        image.alt = '';
+        image.draggable = false;
+        image.width = 90; image.height = 100;
+        image.src = src;
+        this.diskPicker.children[index].prepend(image);
+      });
+    } catch (error) {
+      // Text buttons remain usable if a device cannot allocate a second context.
+      console.warn('Disk tray thumbnails unavailable.', error);
+    }
+  }
+
+  trayPosition(index) {
+    const button = this.diskPicker?.children[index];
+    if (!this.carousel || !button) return null;
+    return trayLaunchPosition(this.camera, this.canvas.getBoundingClientRect(), button.getBoundingClientRect(), this.slot.z + .4);
   }
 
   async paintScreen() {
@@ -266,7 +308,7 @@ export class HeroView {
     this.scene.updateMatrixWorld(true);
     this.raycaster.setFromCamera(pointerNDC(event, this.canvas.getBoundingClientRect()), this.camera);
     // Include the Mac so a disk behind its casing cannot be clicked through it.
-    return this.raycaster.intersectObjects([this.mac, ...this.floppies.map(f => f.group)], true)[0];
+    return this.raycaster.intersectObjects([this.mac, ...this.floppies.filter(f => f.group.visible).map(f => f.group)], true)[0];
   }
 
   onPointerMove(event) {
@@ -328,7 +370,9 @@ export class HeroView {
   }
 
   returnHome(f) {
-    this.move(f, 'ejecting', f.home.clone(), f.homeQuaternion.clone(), 550, () => { f.state = 'home'; }, 0.10, f.homeScale);
+    this.move(f, 'ejecting', this.trayPosition(f.index) || f.home.clone(), f.homeQuaternion.clone(), 550, () => {
+      f.state = 'home'; f.group.visible = !this.carousel;
+    }, 0.10, f.homeScale);
   }
 
   insert(index) {
@@ -342,6 +386,9 @@ export class HeroView {
     this.actions.hidden = true;
     this.paintScreen();
     const project = this.projects[index], f = this.floppies[index];
+    const launch = this.trayPosition(index);
+    if (launch && f.state === 'home') f.group.position.copy(launch);
+    f.group.visible = true;
     this.status.textContent = `Loading ${project.title}…`;
     const horizontal = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
     const approach = this.slot.clone().add(new THREE.Vector3(0, 0, 0.24));
@@ -461,6 +508,9 @@ export class HeroView {
     this.canvas.dataset.activeProject = String(this.active);
     this.canvas.dataset.screenSurface = this.screen?.name || '';
     this.canvas.dataset.floppyCount = String(this.floppies.length);
+    if (this.diskPicker) [...this.diskPicker.children].forEach((button, index) => {
+      button.setAttribute('aria-pressed', String(index === this.active));
+    });
   }
 
   tick(time) {

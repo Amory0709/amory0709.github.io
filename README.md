@@ -4,6 +4,8 @@ Live homepage: https://amory0709.github.io/
 
 Interactive Macintosh portfolio based on [MyPortfolioTemplates](https://github.com/Amory0709/MyPortfolioTemplates). Click a floppy to explore a project, then open its interactive page inside the CRT. Scroll to zoom; the résumé icon supports configurable Chinese and English PDFs (currently placeholders).
 
+On phones, waiting disks appear in a single horizontally scrollable tray below the computer. Swipe to reach more projects, then tap to insert. The tray stays available while viewing introductions and live projects; its scrolling does not zoom the computer or create page-level overflow. Desktop disk arrangements are unchanged.
+
 ## Update the homepage
 
 Edit [`macintosh-portfolio/config.json`](macintosh-portfolio/config.json) to change profile details, links, résumé files, project descriptions, thumbnails and floppy colors. See the [template documentation](macintosh-portfolio/README.md) for all options.
