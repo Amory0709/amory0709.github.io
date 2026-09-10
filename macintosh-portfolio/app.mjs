@@ -1,6 +1,7 @@
 import { loadConfig, applyConfig } from './configuration.mjs?v=6';
-import { HeroView } from './hero.mjs?v=24';
+import { HeroView } from './hero.mjs?v=25';
 import { ResumeView } from './resume.mjs?v=3';
+import { setSceneLoadState } from './scene-loading.mjs';
 
 try {
   const config = await loadConfig();
@@ -13,6 +14,6 @@ try {
   }
 } catch (error) {
   document.getElementById('sceneStatus').textContent = `Configuration / startup error: ${error.message}`;
-  document.getElementById('hero3d').dataset.loadState = 'error';
+  setSceneLoadState(document, 'error');
   console.error(error);
 }

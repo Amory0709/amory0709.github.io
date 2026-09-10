@@ -8,6 +8,7 @@ import { MOBILE_PAN_QUERY, sceneStageWidth, resizedScrollLeft } from './mobile-p
 import { ScreenPortal } from './screen-portal.mjs?v=2';
 import { projectScreen } from './project-screen.mjs?v=5';
 import { createProjectLabelTexture, mapLabelGeometry } from './project-label.mjs';
+import { setSceneLoadState } from './scene-loading.mjs';
 import { prepareFloppy, mapScreenGeometry, fitFloppyToDrive, pointerNDC, ease } from './scene-geometry.mjs?v=5';
 
 export class HeroView {
@@ -125,7 +126,7 @@ export class HeroView {
 
   fail(message, error) {
     this.status.textContent = message;
-    this.canvas.dataset.loadState = 'error';
+    setSceneLoadState(document, 'error');
     console.error(message, error);
   }
 
@@ -198,7 +199,9 @@ export class HeroView {
       this.resize();
       await this.paintScreen();
       this.status.textContent = 'Select a disk to explore a project.';
-      this.canvas.dataset.loadState = 'ready';
+      // Reveal only after the models and their first CRT texture are rendered.
+      this.renderer.render(this.scene, this.camera);
+      setSceneLoadState(document, 'ready');
       this.updateDiagnostics();
     } catch (error) {
       this.fail('The 3D scene could not load. Open this page through the local preview server and reload.', error);
