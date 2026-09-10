@@ -3,7 +3,7 @@ import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from './vendor/three/addons/environments/RoomEnvironment.js';
 import html2canvas from './vendor/html2canvas.esm.js';
 import { CameraFocus, wheelPixels } from './camera-focus.mjs?v=2';
-import { prepareFloppy, mapScreenGeometry, fitFloppyToDrive, pointerNDC, ease } from './scene-geometry.mjs?v=4';
+import { prepareFloppy, mapScreenGeometry, fitFloppyToDrive, pointerNDC, ease } from './scene-geometry.mjs?v=5';
 
 export class HeroView {
   constructor(canvas, projects) {
@@ -173,9 +173,8 @@ export class HeroView {
         ? new THREE.Vector3((index % 4 - 1.5) * 0.39, scale / 2, index < 4 ? 1.35 : 2.20)
         : new THREE.Vector3(-1.02 + index * 2.04 / 7, scale / 2, 2.05);
       const facing = Math.atan2(-f.home.x, this.baseCamera.z - f.home.z);
-      // Show the opposite face in the waiting row, keeping the shutter upright.
-      // The drive approach has its own orientation and must not inherit this flip.
-      f.homeQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, facing + 0.85 + Math.PI, 0));
+      // The canonical +Z face carries the paper label; keep it toward the viewer.
+      f.homeQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, facing + 0.85, 0));
       if (f.state === 'home') {
         f.group.scale.setScalar(f.homeScale);
         f.group.position.copy(f.home);

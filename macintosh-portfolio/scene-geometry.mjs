@@ -5,7 +5,7 @@ import * as THREE from './vendor/three/three.module.js';
  * only meshes: rotations must not be applied a second time to that scene.
  * Canonical coordinates: shutter at +Y, label facing +Z, height = 1.
  */
-export function prepareFloppy(source, { includeLabel = false } = {}) {
+export function prepareFloppy(source, { includeLabel = true } = {}) {
   source.updateMatrixWorld(true);
   let body;
   source.traverse(o => { if (o.isMesh && o.material.name === 'plastic') body = o; });
@@ -21,8 +21,7 @@ export function prepareFloppy(source, { includeLabel = false } = {}) {
 
   source.traverse(o => {
     if (!o.isMesh) return;
-    // The selected concept has unlabelled colored shells. The optional source
-    // paper label is retained in the asset, but is not part of this design.
+    // Preserve the supplied paper label by default. Bare shells remain optional.
     if (o.material.name === 'etiquette' && !includeLabel) return;
     const geometry = o.geometry.clone();
     geometry.applyMatrix4(inverse.clone().multiply(o.matrixWorld));

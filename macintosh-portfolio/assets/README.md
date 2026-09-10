@@ -25,7 +25,7 @@
 2. **改 PNG 像素**（精确编辑）：解 GLB → PIL 改图 → 重新打包
 3. **改 baseColorFactor tint**（整图调色）：粗粒度，会影响所有元素
 
-> 2026-09-08 校正：不能直接比较不同节点的局部 Z 值。将标签完整变换到 plastic 坐标系后，标签 Z 范围约为 `[-0.000031, 0.002669]`，而外壳前表面在 `0` 和 `0.05`，存在交叠。当前主场景按第一张概念图不显示纸标签；`prepareFloppy(source, { includeLabel: true })` 会把标签移到外壳前面并留出 `0.015` 个源模型单位间隙，再统一缩放。原始 GLB 未修改。
+> 2026-09-10 更新：纸标签已按用户要求恢复，标签面朝向镜头，插入时标签面朝上。不能直接比较不同节点的局部 Z 值：将标签完整变换到 plastic 坐标系后，标签 Z 范围约为 `[-0.000031, 0.002669]`，而外壳前表面在 `0` 和 `0.05`，存在交叠。`prepareFloppy(source)` 现在默认保留标签，将它移到外壳前面并留出 `0.015` 个源模型单位间隙，再统一缩放，同时使用 polygon offset 防止深度冲突。仍可显式传入 `{ includeLabel: false }` 隐藏标签。原始 GLB 和贴图未修改。
 
 ## 主体改色
 
@@ -52,7 +52,7 @@ mat.color.set('#3a7bd5');                     // sRGB hex，three.js 自动转 l
 | Prebaked 改色 GLB 渲染色偏 | 走 runtime 改色路线 |
 | Swatch 太多（21 个）"质量低" | 6-7 个精选 + custom color input |
 | 默认白膜没设计感 | 保留原 design 配色（黑 body + 紫 KYANOS） |
-| label mesh Z 错位 | 不影响改色，HTML 覆盖对位用 CSS transform 算 |
+| label mesh Z 错位 | 先统一到 plastic 坐标系，再做物理间隙与 polygon offset；不要使用漂浮的 HTML 覆盖层 |
 
 ## 配套工具
 

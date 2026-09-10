@@ -56,7 +56,8 @@ const floppy = prepareFloppy(rawFloppy);
 test('canonical floppy has shutter up, label side forward and no imported lights', () => {
   let lights = 0; floppy.traverse(o => { if (o.isLight) lights++; });
   assert.equal(lights, 0);
-  assert.equal(floppy.children.length, 3, 'selected concept has no paper label');
+  assert.equal(floppy.children.length, 4, 'restore the supplied paper label by default');
+  assert.ok(floppy.getObjectByName('etiquette'));
   const body = floppy.getObjectByName('plastic').geometry.boundingBox;
   const shutter = floppy.getObjectByName('Alluminum').geometry.boundingBox;
   assert.ok(Math.abs(body.getSize(new THREE.Vector3()).y - 1) < 1e-6);
@@ -64,13 +65,21 @@ test('canonical floppy has shutter up, label side forward and no imported lights
   assert.ok(shutter.getCenter(new THREE.Vector3()).y > 0, 'shutter on the top half');
 });
 
-test('optional original label has a positive physical gap from shell', () => {
+test('original label has a positive physical gap from shell', () => {
   const labelled = prepareFloppy(rawFloppy, { includeLabel: true });
   const shell = labelled.getObjectByName('plastic'), label = labelled.getObjectByName('etiquette');
   assert.ok(label.geometry.boundingBox.min.z - shell.geometry.boundingBox.max.z > 0.0003);
   assert.equal(label.material.polygonOffset, true);
   assert.equal(label.material.transparent, false);
   assert.equal(label.material.depthWrite, true);
+});
+
+test('bare-shell mode remains optional without changing body geometry', () => {
+  const bare = prepareFloppy(rawFloppy, { includeLabel: false });
+  assert.equal(bare.children.length, 3);
+  assert.equal(bare.getObjectByName('etiquette'), undefined);
+  assert.deepEqual(bare.getObjectByName('plastic').geometry.attributes.position.array,
+    floppy.getObjectByName('plastic').geometry.attributes.position.array);
 });
 
 test('screen UV remap preserves every vertex on the supplied curved CRT', () => {
@@ -96,9 +105,14 @@ test('insertion presents label side up and shutter edge toward the drive', () =>
   const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
   assert.ok(new THREE.Vector3(0, 0, 1).applyQuaternion(q).distanceTo(new THREE.Vector3(0, 1, 0)) < 1e-8);
   assert.ok(new THREE.Vector3(0, 1, 0).applyQuaternion(q).distanceTo(new THREE.Vector3(0, 0, -1)) < 1e-8);
+  const seated = floppy.clone(true); seated.quaternion.copy(q); seated.scale.setScalar(0.375);
+  seated.updateMatrixWorld(true);
+  const label = new THREE.Box3().setFromObject(seated.getObjectByName('etiquette'));
+  const shell = new THREE.Box3().setFromObject(seated.getObjectByName('plastic'));
+  assert.ok(label.min.y > shell.max.y, 'inserted label remains above the shell without z-fighting');
 });
 
-test('all waiting disks show the requested opposite face upright on desktop and mobile', () => {
+test('all waiting disks show the label face upright on desktop and mobile', () => {
   const h = Object.create(HeroView.prototype);
   h.floppies = Array.from({ length: 8 }, (_, index) => ({ group: floppy.clone(true), index, state: 'home' }));
   for (const mobile of [false, true]) {
@@ -106,7 +120,7 @@ test('all waiting disks show the requested opposite face upright on desktop and 
     h.baseCamera = new THREE.Vector3(0, mobile ? 1.5 : 1.1, mobile ? 5.4 : 4.65);
     h.arrangeFloppies();
     for (const f of h.floppies) {
-      const displayFace = new THREE.Vector3(0, 0, -1).applyQuaternion(f.homeQuaternion);
+      const displayFace = new THREE.Vector3(0, 0, 1).applyQuaternion(f.homeQuaternion);
       const toCamera = h.baseCamera.clone().sub(f.home); toCamera.y = 0; toCamera.normalize();
       assert.ok(displayFace.dot(toCamera) > 0.65, `disk ${f.index} shows the requested face`);
       assert.ok(new THREE.Vector3(0, 1, 0).applyQuaternion(f.homeQuaternion).distanceTo(new THREE.Vector3(0, 1, 0)) < 1e-8);

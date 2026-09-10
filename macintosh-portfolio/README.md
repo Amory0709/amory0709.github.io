@@ -25,9 +25,9 @@ Do not open `index.html` directly with `file://`: browsers restrict loading GLB 
 
 - The screen is a texture on the supplied model's original curved CRT mesh, not a floating HTML overlay. It follows the camera and model and is naturally occluded by the casing.
 - Floppy meshes are baked into the plastic shell's coordinate frame. The shutter is at the top in the row, and the disk becomes horizontal with its shutter leading into the drive.
-- Imported GLB lights are not duplicated. The selected concept's unlabelled shells omit the source paper label; the optional labelled variant also has a measured positive surface gap and polygon offset to avoid coplanar depth conflict.
+- Imported GLB lights are not duplicated. The original paper labels are restored, with a measured positive surface gap and polygon offset to avoid coplanar depth conflict. Bare shells remain an explicit opt-out.
 - Each disk owns its own interrupted/switching animation; Escape and responsive resize preserve correct return positions. Static disks do not continuously wiggle.
-- The waiting disks are turned 180 degrees around their vertical axis to show the opposite face requested for the preview. Desktop/mobile rows and ejection share that orientation; shutter-leading insertion is unchanged.
+- Waiting disks show their label face toward the viewer. Desktop/mobile rows and ejection share that orientation; insertion keeps the label face up and the shutter leading into the drive.
 - Inserted disk size is measured from the actual drive: 94% of its opening width, with 42% of the disk depth remaining visible. Scale interpolates during approach/ejection; foreground sizes are unchanged, and viewport changes cannot shrink an inserted disk.
 - References: first image (`reference/ui-mockup.png`) for the main layout; third (`reference/ui-mockup-inserted.png`) for the inserted-state direction and its existing illustration. The second image is explicitly excluded. Source GLBs are unchanged.
 
@@ -37,7 +37,7 @@ Do not open `index.html` directly with `file://`: browsers restrict loading GLB 
 npm test
 ```
 
-Twenty-one geometry/animation tests cover real GLB transforms, waiting-disk facing, inserted width, scale interpolation, rapid switching, camera focus/reversal, reduced motion, responsive resize, project navigation, wheel normalization, zoom limits, manual takeover, and scroll handoff. Browser QA captures remain in the original local development workspace.
+Twenty-two geometry/animation tests cover real GLB transforms, restored labels and their clearance, waiting-disk facing, inserted width, scale interpolation, rapid switching, camera focus/reversal, reduced motion, responsive resize, project navigation, wheel normalization, zoom limits, manual takeover, and scroll handoff. Browser QA captures remain in the original local development workspace.
 
 ## Personalize
 
