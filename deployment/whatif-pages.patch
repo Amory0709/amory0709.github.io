@@ -1,0 +1,440 @@
+diff --git a/apps/web/app/globals.css b/apps/web/app/globals.css
+index d4628ea..accab6a 100644
+--- a/apps/web/app/globals.css
++++ b/apps/web/app/globals.css
+@@ -7,14 +7,14 @@
+   font-weight: 400;
+   font-style: normal;
+   font-display: swap;
+-  src: url('/fonts/SLBSans-Regular.woff2') format('woff2');
++  src: url('../public/fonts/SLBSans-Regular.woff2') format('woff2');
+ }
+ @font-face {
+   font-family: 'SLBSans';
+   font-weight: 700;
+   font-style: normal;
+   font-display: swap;
+-  src: url('/fonts/SLBSans-Bold.woff2') format('woff2');
++  src: url('../public/fonts/SLBSans-Bold.woff2') format('woff2');
+ }
+ @tailwind base;
+ @tailwind components;
+diff --git a/apps/web/app/mobile-upload/page.tsx b/apps/web/app/mobile-upload/page.tsx
+index 1147c94..bbc8796 100644
+--- a/apps/web/app/mobile-upload/page.tsx
++++ b/apps/web/app/mobile-upload/page.tsx
+@@ -3,6 +3,7 @@
+ import { Suspense, useCallback, useRef, useState } from 'react';
+ import { useSearchParams } from 'next/navigation';
+ import { Check, Loader2, Upload } from 'lucide-react';
++import { staticDemo } from '@/lib/site-path';
+ 
+ function MobileUploadInner() {
+   const params = useSearchParams();
+@@ -100,6 +101,7 @@ function MobileUploadInner() {
+ }
+ 
+ export default function MobileUploadPage() {
++  if (staticDemo) return <main className="p-10"><h1>Frontend preview</h1><p>Photo uploads and face-swap generation are not enabled on this static preview.</p></main>;
+   return (
+     <Suspense
+       fallback={
+diff --git a/apps/web/app/print/[id]/page.tsx b/apps/web/app/print/[id]/page.tsx
+index d9896eb..a57cc53 100644
+--- a/apps/web/app/print/[id]/page.tsx
++++ b/apps/web/app/print/[id]/page.tsx
+@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
+ import { loadOne, loadGallery } from "@/lib/gallery";
+ import { StudioShell } from "@/components/ag/StudioShell";
+ import { buildAGItems } from "@/components/ag/types";
++import { sitePath, staticDemo } from '@/lib/site-path';
+ 
+ export async function generateStaticParams() {
+   const all = await loadGallery();
+@@ -17,10 +18,10 @@ export default async function PrintPage({ params }: { params: { id: string } })
+   if (!art) return notFound();
+   // SSR placeholder so ResultView renders into HTML. The client effect below replaces
+   // this with the real sessionStorage blob URL (the swapped-face PNG) once mounted.
+-  const initialPrintUrl = art.image ?? `/gallery/${params.id}.jpg`;
++  const initialPrintUrl = art.image ?? sitePath(`/gallery/${params.id}.jpg`);
+   return (
+     <main className="relative min-h-screen overflow-hidden">
+-      <StudioShell items={items} initialId={params.id} initialStep="result" initialPrintUrl={initialPrintUrl} />
++      <StudioShell items={items} initialId={params.id} initialStep={staticDemo ? 'detail' : 'result'} initialPrintUrl={staticDemo ? null : initialPrintUrl} />
+     </main>
+   );
+ }
+diff --git a/apps/web/components/ag/DetailView.tsx b/apps/web/components/ag/DetailView.tsx
+index 9e9cc61..f327468 100644
+--- a/apps/web/components/ag/DetailView.tsx
++++ b/apps/web/components/ag/DetailView.tsx
+@@ -7,6 +7,7 @@ import { UploadArchiveModal } from './UploadArchiveModal';
+ import { GradientTile } from './GradientTile';
+ import { getApiBase } from '@/lib/api-base';
+ import type { AGArtwork } from './types';
++import { staticDemo } from '@/lib/site-path';
+ 
+ export function DetailView({ target, onComplete, onBack }: { target: AGArtwork; onComplete: (printUrl: string) => void; onBack: () => void }) {
+   const [showAgreement, setShowAgreement] = useState(false);
+@@ -74,6 +75,7 @@ export function DetailView({ target, onComplete, onBack }: { target: AGArtwork;
+   };
+ 
+   const runSwap = async (f: File) => {
++    if (staticDemo) { setError('Frontend preview only. Face-swap service is not connected.'); return; }
+     setBusy(true);
+     setError(null);
+     setFinishedIn(null);
+@@ -167,13 +169,13 @@ export function DetailView({ target, onComplete, onBack }: { target: AGArtwork;
+       <div className="w-full md:w-1/2 flex flex-col justify-center max-w-md">
+         <h2 className="text-4xl md:text-5xl mb-4 italic">Become the Subject</h2>
+         <p className="text-muted-foreground font-sans font-light mb-8">
+-          Lend your visage to the masterworks. Select a method to provide your portrait for the exhibition.
++          {staticDemo ? 'Frontend preview only. Browse the portrait gallery and interface. Face-swap generation requires a separately hosted AI service; no photos are collected in this preview.' : 'Lend your visage to the masterworks. Select a method to provide your portrait for the exhibition.'}
+         </p>
+ 
+         <div className="flex flex-col gap-4">
+           <button
+             onClick={() => handleActionClick('upload')}
+-            disabled={busy}
++            disabled={busy || staticDemo}
+             className="flex items-center gap-6 p-6 border border-border hover:bg-primary/5 hover:border-primary/30 transition-all group disabled:opacity-50"
+           >
+             <Upload className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />
+@@ -185,7 +187,7 @@ export function DetailView({ target, onComplete, onBack }: { target: AGArtwork;
+ 
+           <button
+             onClick={() => handleActionClick('camera')}
+-            disabled={busy}
++            disabled={busy || staticDemo}
+             className="flex items-center gap-6 p-6 border border-border hover:bg-primary/5 hover:border-primary/30 transition-all group disabled:opacity-50"
+           >
+             <Camera className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />
+diff --git a/apps/web/components/ag/StudioShell.tsx b/apps/web/components/ag/StudioShell.tsx
+index 808135a..28f6319 100644
+--- a/apps/web/components/ag/StudioShell.tsx
++++ b/apps/web/components/ag/StudioShell.tsx
+@@ -6,6 +6,7 @@ import { GalleryView } from './GalleryView';
+ import { DetailView } from './DetailView';
+ import { ResultView } from './ResultView';
+ import type { AGArtwork } from './types';
++import { sitePath, staticDemo } from '@/lib/site-path';
+ 
+ type Step = 'gallery' | 'detail' | 'result';
+ 
+@@ -57,25 +58,25 @@ export function StudioShell({
+   const handleSelect = (img: AGArtwork) => {
+     setSelected(img);
+     setStep('detail');
+-    if (typeof window !== 'undefined') window.history.replaceState(null, '', '/swap/' + img.sourceId);
++    if (typeof window !== 'undefined') window.history.replaceState(null, '', sitePath('/swap/' + img.sourceId + '/'));
+   };
+ 
+   const handleComplete = (url: string) => {
+     setPrintUrl(url);
+     setStep('result');
+     if (typeof window !== 'undefined' && selected) {
+-      window.history.replaceState(null, '', '/print/' + selected.sourceId);
++      window.history.replaceState(null, '', sitePath('/print/' + selected.sourceId + '/'));
+     }
+   };
+ 
+   const handleBack = () => {
+     if (step === 'result') {
+       setStep('detail');
+-      if (typeof window !== 'undefined' && selected) window.history.replaceState(null, '', '/swap/' + selected.sourceId);
++      if (typeof window !== 'undefined' && selected) window.history.replaceState(null, '', sitePath('/swap/' + selected.sourceId + '/'));
+     } else if (step === 'detail') {
+       setStep('gallery');
+       setSelected(null);
+-      if (typeof window !== 'undefined') window.history.replaceState(null, '', '/');
++      if (typeof window !== 'undefined') window.history.replaceState(null, '', sitePath('/'));
+     }
+   };
+ 
+@@ -83,7 +84,7 @@ export function StudioShell({
+     setStep('gallery');
+     setSelected(null);
+     setPrintUrl(null);
+-    if (typeof window !== 'undefined') window.history.replaceState(null, '', '/');
++    if (typeof window !== 'undefined') window.history.replaceState(null, '', sitePath('/'));
+   };
+ 
+   return (
+@@ -98,6 +99,7 @@ export function StudioShell({
+                 animate={{ opacity: 1, x: 0 }}
+                 exit={{ opacity: 0, x: -10 }}
+                 onClick={handleBack}
++                aria-label="Back to gallery"
+                 className="hover:text-muted-foreground transition-colors"
+               >
+                 <ChevronLeft className="w-6 h-6" strokeWidth={1.5} />
+@@ -110,6 +112,7 @@ export function StudioShell({
+         </div>
+         <div className="text-xs font-sans tracking-widest uppercase text-muted-foreground">
+           {STEP_LABEL[step]}
++          {staticDemo && <span className="block mt-1 normal-case tracking-normal">Frontend preview · AI service offline</span>}
+         </div>
+       </header>
+ 
+diff --git a/apps/web/components/ag/types.ts b/apps/web/components/ag/types.ts
+index 47de5ee..ae9fb84 100644
+--- a/apps/web/components/ag/types.ts
++++ b/apps/web/components/ag/types.ts
+@@ -1,3 +1,4 @@
++import { sitePath } from '@/lib/site-path';
+ export type AGArtwork = {
+   /** Unique carousel key (fig-N for filler slots). */
+   id: string;
+@@ -51,7 +52,7 @@ export function buildAGItems(
+   const real = realItems ?? [];
+   for (let i = 0; i < 50; i++) {
+     const base = BASE_TITLES[i % BASE_TITLES.length];
+-    const img = BASE_FILLER[i % BASE_FILLER.length];
++    const img = sitePath(BASE_FILLER[i % BASE_FILLER.length]);
+     const image = i < real.length ? (real[i].image ?? img) : img;
+     const sourceId =
+       i < real.length
+diff --git a/apps/web/lib/gallery.ts b/apps/web/lib/gallery.ts
+index 805c594..e975da8 100644
+--- a/apps/web/lib/gallery.ts
++++ b/apps/web/lib/gallery.ts
+@@ -1,6 +1,7 @@
+ import "server-only";
+ import { promises as fs } from "fs";
+ import path from "path";
++import { sitePath } from './site-path';
+ 
+ export type Artwork = {
+   id: string;
+@@ -31,7 +32,7 @@ export async function loadGallery(): Promise<Artwork[]> {
+   return Promise.all(
+     raw.map(async (art) => {
+       const file = await resolveImageFile(art.id, galleryDir);
+-      return file ? { ...art, image: "/gallery/" + file } : art;
++      return file ? { ...art, image: sitePath("/gallery/" + file) } : art;
+     }),
+   );
+ }
+diff --git a/apps/web/next.config.mjs b/apps/web/next.config.mjs
+index b2a4218..6f151c6 100644
+--- a/apps/web/next.config.mjs
++++ b/apps/web/next.config.mjs
+@@ -13,6 +13,8 @@
+ /** @type {import("next").NextConfig} */
+ const isProd = process.env.NODE_ENV === 'production';
+ const nextConfig = {
++  basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
++  trailingSlash: true,
+   // Pure static export → drops into apps/web/out, then FastAPI serves it.
+   ...(isProd && { output: 'export' }),
+   // next/image is not used, but keep unoptimized in case a child component pulls it in.
+@@ -26,4 +28,4 @@ const nextConfig = {
+     return [{ source: '/api/:path*', destination: `${apiOrigin}/api/:path*` }];
+   },
+ };
+-export default nextConfig;
+\ No newline at end of file
++export default nextConfig;
+diff --git a/apps/web/package.json b/apps/web/package.json
+index abe3b78..5a53353 100644
+--- a/apps/web/package.json
++++ b/apps/web/package.json
+@@ -1 +1 @@
+-{"name":"@whatif/web","version":"0.1.0","private":true,"scripts":{"dev":"next dev","build":"next build","start":"next start"},"dependencies":{"clsx":"2.1.1","framer-motion":"11.3.19","lucide-react":"^0.460.0","next":"14.2.5","qrcode.react":"^4.2.0","react":"18.3.1","react-dom":"18.3.1","tailwind-merge":"2.5.2"},"devDependencies":{"@types/node":"20.14.10","@types/react":"18.3.3","@types/react-dom":"18.3.0","autoprefixer":"10.4.19","postcss":"8.4.39","tailwindcss":"3.4.7","typescript":"5.5.4"}}
+\ No newline at end of file
++{"name":"@whatif/web","version":"0.1.0","private":true,"scripts":{"dev":"next dev","build":"next build","start":"next start"},"dependencies":{"clsx":"2.1.1","framer-motion":"11.3.19","lucide-react":"^0.460.0","next":"^14.2.35","qrcode.react":"^4.2.0","react":"18.3.1","react-dom":"18.3.1","tailwind-merge":"2.5.2"},"devDependencies":{"@types/node":"20.14.10","@types/react":"18.3.3","@types/react-dom":"18.3.0","autoprefixer":"10.4.19","postcss":"8.4.39","tailwindcss":"3.4.7","typescript":"5.5.4"}}
+\ No newline at end of file
+diff --git a/package-lock.json b/package-lock.json
+index 18f895f..b6be0f5 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -21,7 +21,7 @@
+         "clsx": "2.1.1",
+         "framer-motion": "11.3.19",
+         "lucide-react": "^0.460.0",
+-        "next": "14.2.5",
++        "next": "^14.2.35",
+         "qrcode.react": "^4.2.0",
+         "react": "18.3.1",
+         "react-dom": "18.3.1",
+@@ -90,15 +90,15 @@
+       }
+     },
+     "node_modules/@next/env": {
+-      "version": "14.2.5",
+-      "resolved": "https://registry.npmjs.org/@next/env/-/env-14.2.5.tgz",
+-      "integrity": "sha512-/zZGkrTOsraVfYjGP8uM0p6r0BDT6xWpkjdVbcz66PJVSpwXX3yNiRycxAuDfBKGWBrZBXRuK/YVlkNgxHGwmA==",
++      "version": "14.2.35",
++      "resolved": "https://registry.npmjs.org/@next/env/-/env-14.2.35.tgz",
++      "integrity": "sha512-DuhvCtj4t9Gwrx80dmz2F4t/zKQ4ktN8WrMwOuVzkJfBilwAwGr6v16M5eI8yCuZ63H9TTuEU09Iu2HqkzFPVQ==",
+       "license": "MIT"
+     },
+     "node_modules/@next/swc-darwin-arm64": {
+-      "version": "14.2.5",
+-      "resolved": "https://registry.npmjs.org/@next/swc-darwin-arm64/-/swc-darwin-arm64-14.2.5.tgz",
+-      "integrity": "sha512-/9zVxJ+K9lrzSGli1///ujyRfon/ZneeZ+v4ptpiPoOU+GKZnm8Wj8ELWU1Pm7GHltYRBklmXMTUqM/DqQ99FQ==",
++      "version": "14.2.33",
++      "resolved": "https://registry.npmjs.org/@next/swc-darwin-arm64/-/swc-darwin-arm64-14.2.33.tgz",
++      "integrity": "sha512-HqYnb6pxlsshoSTubdXKu15g3iivcbsMXg4bYpjL2iS/V6aQot+iyF4BUc2qA/J/n55YtvE4PHMKWBKGCF/+wA==",
+       "cpu": [
+         "arm64"
+       ],
+@@ -112,9 +112,9 @@
+       }
+     },
+     "node_modules/@next/swc-darwin-x64": {
+-      "version": "14.2.5",
+-      "resolved": "https://registry.npmjs.org/@next/swc-darwin-x64/-/swc-darwin-x64-14.2.5.tgz",
+-      "integrity": "sha512-vXHOPCwfDe9qLDuq7U1OYM2wUY+KQ4Ex6ozwsKxp26BlJ6XXbHleOUldenM67JRyBfVjv371oneEvYd3H2gNSA==",
++      "version": "14.2.33",
++      "resolved": "https://registry.npmjs.org/@next/swc-darwin-x64/-/swc-darwin-x64-14.2.33.tgz",
++      "integrity": "sha512-8HGBeAE5rX3jzKvF593XTTFg3gxeU4f+UWnswa6JPhzaR6+zblO5+fjltJWIZc4aUalqTclvN2QtTC37LxvZAA==",
+       "cpu": [
+         "x64"
+       ],
+@@ -128,9 +128,9 @@
+       }
+     },
+     "node_modules/@next/swc-linux-arm64-gnu": {
+-      "version": "14.2.5",
+-      "resolved": "https://registry.npmjs.org/@next/swc-linux-arm64-gnu/-/swc-linux-arm64-gnu-14.2.5.tgz",
+-      "integrity": "sha512-vlhB8wI+lj8q1ExFW8lbWutA4M2ZazQNvMWuEDqZcuJJc78iUnLdPPunBPX8rC4IgT6lIx/adB+Cwrl99MzNaA==",
++      "version": "14.2.33",
++      "resolved": "https://registry.npmjs.org/@next/swc-linux-arm64-gnu/-/swc-linux-arm64-gnu-14.2.33.tgz",
++      "integrity": "sha512-JXMBka6lNNmqbkvcTtaX8Gu5by9547bukHQvPoLe9VRBx1gHwzf5tdt4AaezW85HAB3pikcvyqBToRTDA4DeLw==",
+       "cpu": [
+         "arm64"
+       ],
+@@ -144,9 +144,9 @@
+       }
+     },
+     "node_modules/@next/swc-linux-arm64-musl": {
+-      "version": "14.2.5",
+-      "resolved": "https://registry.npmjs.org/@next/swc-linux-arm64-musl/-/swc-linux-arm64-musl-14.2.5.tgz",
+-      "integrity": "sha512-NpDB9NUR2t0hXzJJwQSGu1IAOYybsfeB+LxpGsXrRIb7QOrYmidJz3shzY8cM6+rO4Aojuef0N/PEaX18pi9OA==",
++      "version": "14.2.33",
++      "resolved": "https://registry.npmjs.org/@next/swc-linux-arm64-musl/-/swc-linux-arm64-musl-14.2.33.tgz",
++      "integrity": "sha512-Bm+QulsAItD/x6Ih8wGIMfRJy4G73tu1HJsrccPW6AfqdZd0Sfm5Imhgkgq2+kly065rYMnCOxTBvmvFY1BKfg==",
+       "cpu": [
+         "arm64"
+       ],
+@@ -160,9 +160,9 @@
+       }
+     },
+     "node_modules/@next/swc-linux-x64-gnu": {
+-      "version": "14.2.5",
+-      "resolved": "https://registry.npmjs.org/@next/swc-linux-x64-gnu/-/swc-linux-x64-gnu-14.2.5.tgz",
+-      "integrity": "sha512-8XFikMSxWleYNryWIjiCX+gU201YS+erTUidKdyOVYi5qUQo/gRxv/3N1oZFCgqpesN6FPeqGM72Zve+nReVXQ==",
++      "version": "14.2.33",
++      "resolved": "https://registry.npmjs.org/@next/swc-linux-x64-gnu/-/swc-linux-x64-gnu-14.2.33.tgz",
++      "integrity": "sha512-FnFn+ZBgsVMbGDsTqo8zsnRzydvsGV8vfiWwUo1LD8FTmPTdV+otGSWKc4LJec0oSexFnCYVO4hX8P8qQKaSlg==",
+       "cpu": [
+         "x64"
+       ],
+@@ -176,9 +176,9 @@
+       }
+     },
+     "node_modules/@next/swc-linux-x64-musl": {
+-      "version": "14.2.5",
+-      "resolved": "https://registry.npmjs.org/@next/swc-linux-x64-musl/-/swc-linux-x64-musl-14.2.5.tgz",
+-      "integrity": "sha512-6QLwi7RaYiQDcRDSU/os40r5o06b5ue7Jsk5JgdRBGGp8l37RZEh9JsLSM8QF0YDsgcosSeHjglgqi25+m04IQ==",
++      "version": "14.2.33",
++      "resolved": "https://registry.npmjs.org/@next/swc-linux-x64-musl/-/swc-linux-x64-musl-14.2.33.tgz",
++      "integrity": "sha512-345tsIWMzoXaQndUTDv1qypDRiebFxGYx9pYkhwY4hBRaOLt8UGfiWKr9FSSHs25dFIf8ZqIFaPdy5MljdoawA==",
+       "cpu": [
+         "x64"
+       ],
+@@ -192,9 +192,9 @@
+       }
+     },
+     "node_modules/@next/swc-win32-arm64-msvc": {
+-      "version": "14.2.5",
+-      "resolved": "https://registry.npmjs.org/@next/swc-win32-arm64-msvc/-/swc-win32-arm64-msvc-14.2.5.tgz",
+-      "integrity": "sha512-1GpG2VhbspO+aYoMOQPQiqc/tG3LzmsdBH0LhnDS3JrtDx2QmzXe0B6mSZZiN3Bq7IOMXxv1nlsjzoS1+9mzZw==",
++      "version": "14.2.33",
++      "resolved": "https://registry.npmjs.org/@next/swc-win32-arm64-msvc/-/swc-win32-arm64-msvc-14.2.33.tgz",
++      "integrity": "sha512-nscpt0G6UCTkrT2ppnJnFsYbPDQwmum4GNXYTeoTIdsmMydSKFz9Iny2jpaRupTb+Wl298+Rh82WKzt9LCcqSQ==",
+       "cpu": [
+         "arm64"
+       ],
+@@ -208,9 +208,9 @@
+       }
+     },
+     "node_modules/@next/swc-win32-ia32-msvc": {
+-      "version": "14.2.5",
+-      "resolved": "https://registry.npmjs.org/@next/swc-win32-ia32-msvc/-/swc-win32-ia32-msvc-14.2.5.tgz",
+-      "integrity": "sha512-Igh9ZlxwvCDsu6438FXlQTHlRno4gFpJzqPjSIBZooD22tKeI4fE/YMRoHVJHmrQ2P5YL1DoZ0qaOKkbeFWeMg==",
++      "version": "14.2.33",
++      "resolved": "https://registry.npmjs.org/@next/swc-win32-ia32-msvc/-/swc-win32-ia32-msvc-14.2.33.tgz",
++      "integrity": "sha512-pc9LpGNKhJ0dXQhZ5QMmYxtARwwmWLpeocFmVG5Z0DzWq5Uf0izcI8tLc+qOpqxO1PWqZ5A7J1blrUIKrIFc7Q==",
+       "cpu": [
+         "ia32"
+       ],
+@@ -224,9 +224,9 @@
+       }
+     },
+     "node_modules/@next/swc-win32-x64-msvc": {
+-      "version": "14.2.5",
+-      "resolved": "https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-14.2.5.tgz",
+-      "integrity": "sha512-tEQ7oinq1/CjSG9uSTerca3v4AZ+dFa+4Yu6ihaG8Ud8ddqLQgFGcnwYls13H5X5CPDPZJdYxyeMui6muOLd4g==",
++      "version": "14.2.33",
++      "resolved": "https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-14.2.33.tgz",
++      "integrity": "sha512-nOjfZMy8B94MdisuzZo9/57xuFVLHJaDj5e/xrduJp9CV2/HrfxTRH2fbyLe+K9QT41WBLUd4iXX3R7jBp0EUg==",
+       "cpu": [
+         "x64"
+       ],
+@@ -1112,13 +1112,12 @@
+       }
+     },
+     "node_modules/next": {
+-      "version": "14.2.5",
+-      "resolved": "https://registry.npmjs.org/next/-/next-14.2.5.tgz",
+-      "integrity": "sha512-0f8aRfBVL+mpzfBjYfQuLWh2WyAwtJXCRfkPF4UJ5qd2YwrHczsrSzXU4tRMV0OAxR8ZJZWPFn6uhSC56UTsLA==",
+-      "deprecated": "This version has a security vulnerability. Please upgrade to a patched version. See https://nextjs.org/blog/security-update-2025-12-11 for more details.",
++      "version": "14.2.35",
++      "resolved": "https://registry.npmjs.org/next/-/next-14.2.35.tgz",
++      "integrity": "sha512-KhYd2Hjt/O1/1aZVX3dCwGXM1QmOV4eNM2UTacK5gipDdPN/oHHK/4oVGy7X8GMfPMsUTUEmGlsy0EY1YGAkig==",
+       "license": "MIT",
+       "dependencies": {
+-        "@next/env": "14.2.5",
++        "@next/env": "14.2.35",
+         "@swc/helpers": "0.5.5",
+         "busboy": "1.6.0",
+         "caniuse-lite": "^1.0.30001579",
+@@ -1133,15 +1132,15 @@
+         "node": ">=18.17.0"
+       },
+       "optionalDependencies": {
+-        "@next/swc-darwin-arm64": "14.2.5",
+-        "@next/swc-darwin-x64": "14.2.5",
+-        "@next/swc-linux-arm64-gnu": "14.2.5",
+-        "@next/swc-linux-arm64-musl": "14.2.5",
+-        "@next/swc-linux-x64-gnu": "14.2.5",
+-        "@next/swc-linux-x64-musl": "14.2.5",
+-        "@next/swc-win32-arm64-msvc": "14.2.5",
+-        "@next/swc-win32-ia32-msvc": "14.2.5",
+-        "@next/swc-win32-x64-msvc": "14.2.5"
++        "@next/swc-darwin-arm64": "14.2.33",
++        "@next/swc-darwin-x64": "14.2.33",
++        "@next/swc-linux-arm64-gnu": "14.2.33",
++        "@next/swc-linux-arm64-musl": "14.2.33",
++        "@next/swc-linux-x64-gnu": "14.2.33",
++        "@next/swc-linux-x64-musl": "14.2.33",
++        "@next/swc-win32-arm64-msvc": "14.2.33",
++        "@next/swc-win32-ia32-msvc": "14.2.33",
++        "@next/swc-win32-x64-msvc": "14.2.33"
+       },
+       "peerDependencies": {
+         "@opentelemetry/api": "^1.1.0",
+diff --git a/apps/web/lib/site-path.ts b/apps/web/lib/site-path.ts
+new file mode 100644
+index 0000000..8baa3a0
+--- /dev/null
++++ b/apps/web/lib/site-path.ts
+@@ -0,0 +1,6 @@
++export const staticDemo = process.env.NEXT_PUBLIC_STATIC_DEMO === 'true';
++const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || '').replace(/\/$/, '');
++export function sitePath(path: string): string {
++  if (!path.startsWith('/') || (basePath && path.startsWith(basePath + '/'))) return path;
++  return basePath + path;
++}

@@ -1,54 +1,195 @@
 # Macintosh Portfolio
 
-An interactive, single-scene Three.js portfolio built around the supplied Macintosh 128K and floppy-disk GLB assets.
+复古 Macintosh 风格的交互作品集。点击彩色软盘插入电脑，在 CRT 中查看作品介绍和真实项目网页。使用 HTML、ES modules、Three.js、html2canvas 和 PDF.js；无需框架、构建步骤或运行时 CDN。
 
-Published preview: https://amory0709.github.io/macintosh-portfolio/
+![Preview](docs/preview.png)
 
-This self-contained folder is deployed by the repository's existing GitHub Pages workflow. The root homepage and other project folders are unchanged. Local QA captures, the excluded second concept image, scratch tools, and raw video recordings are not part of this publication.
+## 快速开始
 
-## Run locally
+从本目录启动 HTTP 服务（需要 Python 3）：
 
 ```bash
-cd macintosh-portfolio
-python3 -m http.server 4173
+python3 -m http.server 4173 --bind 127.0.0.1
 ```
 
-Then open `http://localhost:4173`. Click a colored floppy to insert it into the Mac and reveal its project card; click it again or press Escape to eject it.
+打开 [http://localhost:4173/](http://localhost:4173/)。安装了 Node.js 的环境也可以使用 `npm run dev`，它调用同一个 Python 命令。不需要 `npm install`。
 
-After insertion, the camera smoothly moves closer to the CRT and holds that view. Ejecting returns to the overview. Use Previous / Next below the canvas to switch projects while zoomed in. Camera motion is interruptible, survives responsive resize, and becomes immediate when reduced motion is enabled. The demo recorder now reuses this same interaction instead of applying its own zoom choreography.
+**不要直接打开 `file://.../index.html`。** 模型、ES modules、配置和 PDF 预览需要 HTTP(S)。浏览器需要支持 WebGL、ES modules、Web Workers 和原生 dialog；无法显示 3D 时请检查硬件加速。
 
-Scroll over the page to zoom: wheel up moves closer, wheel down moves farther away. Scrolling remains captured at both zoom limits. Browser zoom shortcuts and horizontal gestures are not intercepted; the model-credit popup and keyboard project picker retain independent scrolling. Manual input takes over an automatic camera move without a jump. Escape restores the overview even when no disk is inserted; insertion/ejection still restore their usual framing. The − / reset / + buttons also work on touch devices.
+## 一个配置文件完成个性化
 
-The page uses a fixed dynamic viewport height (`100dvh`, with `100vh` fallback), safe-area insets, and a remaining-space canvas. The camera fits actual model bounds to the canvas aspect ratio: eight disks in one row normally, two rows in portrait, or four disks on each side on short landscape screens. Overview includes all eight disks; close-up fits the Mac and inserted disk, while waiting disks can move outside the close-up frame. Camera distances are derived from the available space, not fixed desktop/mobile Z values. Model attribution remains available in the footer's Model credits popup.
+编辑 [config.json](config.json)。[config.example.json](config.example.json) 提供通用姓名、邮箱和社交链接示例；若要使用它，请先备份自己的配置，再将其复制为 `config.json`。
 
-Do not open `index.html` directly with `file://`: browsers restrict loading GLB assets and ES modules there. Runtime libraries are vendored locally; no CDN or build step is required.
+配置加载时会进行校验，错误信息显示在页面底部操作区。JSON 必须使用双引号，不支持注释和尾随逗号。配置、PDF 和图片都是公开静态资源，**不要放入密码、API Key 或其他秘密**。
 
-## Scene fixes (2026-09-08)
+| 字段 | 作用 |
+| --- | --- |
+| `profile.name` / `profile.title` | 页头姓名和职业；默认浏览器标题也由此生成 |
+| `profile.email` | 邮箱，不含 `mailto:`；其他链接可用 `$email` 引用 |
+| `site.language` | HTML 文档语言，例如 `en`、`zh-CN`；不会自动翻译作品文案 |
+| `site.pageTitle` / `site.description` | 浏览器标题和描述；留空时自动生成 |
+| `socials` | 右上角链接，最多 5 个；支持 `github`、`linkedin`、`email` 图标 |
+| `navigation` | 默认 `[]`；仅添加真实存在的页面，最多 6 项 |
+| `footer.text` | 完整版权文案；非空时优先使用，不会随姓名自动变化 |
+| `footer.note` | `footer.text` 为空时，追加到自动生成的版权文字后 |
+| `projects` | 1-8 个作品，对应软盘数量与顺序 |
+| `screen` | 全局项目介绍字号、按钮文字和默认配图 |
+| `resume` | 简历图标、中英文 PDF、默认语言和下载名称 |
 
-- The screen is a texture on the supplied model's original curved CRT mesh, not a floating HTML overlay. It follows the camera and model and is naturally occluded by the casing.
-- Floppy meshes are baked into the plastic shell's coordinate frame. The shutter is at the top in the row, and the disk becomes horizontal with its shutter leading into the drive.
-- Imported GLB lights are not duplicated. The original paper meshes carry per-project labels generated from each project's title and disk color. Each disk owns a high-resolution texture with wrapped text and a paper border; UV remapping preserves geometry, the positive surface gap, and polygon offset. The supplied GLB is unchanged. Bare shells remain an explicit adapter opt-out.
-- Each disk owns its own interrupted/switching animation; Escape and responsive resize preserve correct return positions. Static disks do not continuously wiggle.
-- Waiting disks show their label face toward the viewer. Desktop/mobile rows and ejection share that orientation; insertion keeps the label face up and the shutter leading into the drive.
-- Inserted disk size is measured from the actual drive: 94% of its opening width, with 42% of the disk depth remaining visible. Scale interpolates during approach/ejection; foreground sizes are unchanged, and viewport changes cannot shrink an inserted disk.
-- References: first image (`reference/ui-mockup.png`) for the main layout; third (`reference/ui-mockup-inserted.png`) for the inserted-state direction and its existing illustration. The second image is explicitly excluded. Source GLBs are unchanged.
+`profile.initials` 是兼容旧配置的保留字段，介绍页不再显示 AM / 姓名缩写。
 
-## Verification
+### 基本资料与社交链接
+
+以下是配置片段，替换对应字段即可：
+
+```json
+"profile": {
+  "name": "Your Name",
+  "title": "Designer & Developer",
+  "email": "hello@example.com"
+},
+"socials": [
+  { "label": "GitHub", "icon": "github", "href": "https://github.com/your-username" },
+  { "label": "Email", "icon": "email", "href": "$email" }
+],
+"footer": { "text": "", "note": "Made with care" }
+```
+
+链接留空会隐藏。`navigation` 项可额外指定 `newTab`，以及 `screen: true`（最多 3 项）将真实导航同步到 CRT。默认不包含 About / Work 等不存在的页面。
+
+## 作品、软盘颜色与图片
+
+每个 `projects` 数组元素对应一张软盘。例如：
+
+```json
+{
+  "title": "My Project",
+  "desc": "A short introduction to my interactive project.",
+  "color": "#507aba",
+  "link": "https://example.com/project/",
+  "screen": {
+    "titleSize": 40,
+    "descriptionSize": 17,
+    "buttonSize": 18,
+    "buttonText": "View project",
+    "image": {
+      "src": "./assets/projects/my-project.png",
+      "alt": "A screenshot of my project",
+      "fit": "cover"
+    }
+  },
+  "embed": { "enabled": true, "width": 1300, "height": 980 }
+}
+```
+
+- `color`：六位十六进制颜色，**同步软盘外壳和标签配色**。模型光照会影响屏幕上看到的颜色。
+- `title`：同步软盘纸标签、介绍标题和项目选择器；纸标签自动换行。
+- `desc`：介绍页正文。建议约 200 个英文字符以内，详细内容放在项目网页中。
+- `link`：项目地址。留空或设为 `"#"`、且没有单独的嵌入地址时，仅展示介绍，不显示无效打开按钮。
+- `screen.image.src`：实际图片文件路径。先添加文件，再修改配置；留空隐藏配图。
+- `fit: "cover"` 等比填满并裁切；`"contain"` 完整等比显示，可能留边。旧 `"concept"` 仅保留兼容，不建议新配置使用。
+- PNG、JPG、WebP、SVG 可作为配图。推荐同站点资源；跨域图片需要允许 CORS，否则显示图片说明。
+
+介绍采用顶部标题、大幅截图、下方正文和全宽描边按钮的布局。逻辑画布为 640 × 480；默认标题 / 正文 / 按钮为 40 / 17 / 18 px。顶层 `screen` 定义全局默认值，单个项目的 `screen` 可覆盖。允许字号范围分别为 24-60、14-28、14-26；极长文案或最大字号可能超出固定大小的卡片。
+
+示例截图位于 [assets/projects/](assets/projects/)，来源及第三方内容署名见 [素材说明](assets/projects/README.md)。替换这些图片和文案，使其准确反映自己的作品。
+
+## 在 Mac 中打开项目
+
+点击 CRT 内或屏幕下方的 **View project**，真实项目网页会在电脑屏幕内的 iframe 中打开，可操作其按钮、输入框和画布，而不只是显示截图。
+
+- 默认使用项目 `link`；可通过 `embed.url` 提供独立的嵌入地址。
+- `embed.width` / `embed.height` 是项目网页的虚拟视口，默认 1300 × 980。整个网页随 CRT 等比缩放，不分别拉伸横纵轴；不匹配的比例会留边。
+- 宽度范围为 320-1920，高度为 240-1440。`embed.enabled: false` 改为独立打开。
+- 项目介绍和交互网页共用机位；切换 **Intro** 不会重置手动缩放。
+- 切换作品或退盘会移除旧 iframe，停止旧页面的运行和声音。
+- 第三方站点可能用 CSP / X-Frame-Options 禁止嵌入。模板不能绕过该限制；使用外部打开按钮，或为自己的项目提供允许嵌入的地址。
+- iframe 内部保留项目自身滚动与缩放；屏幕外的滚轮控制电脑机位。跨域 iframe 聚焦时，Esc 可能由项目自身处理，外部 Intro / Eject 按钮始终可用。
+
+## 双语简历
+
+点击右上角文件图标打开简历弹窗。支持中文 / English 切换、逐页 PDF 预览、下载当前语言的原始 PDF、独立打开。
+
+目前附带两份**明确标注为占位、非真实简历**的 PDF，可直接体验。准备正式简历后，在 `assets/resume/` 放入两个 PDF 并更新：
+
+```json
+"resume": {
+  "enabled": true,
+  "label": "简历 / CV",
+  "defaultLanguage": "zh",
+  "zh": { "src": "./assets/resume/resume-zh.pdf", "filename": "My-Resume-ZH.pdf" },
+  "en": { "src": "./assets/resume/resume-en.pdf", "filename": "My-Resume-EN.pdf" }
+}
+```
+
+- `label` 设置图标的悬停提示及无障碍名称。
+- `defaultLanguage` 为 `zh` 或 `en`；切换文件不会自动翻译 PDF。
+- `filename` 是下载名称，只填写以 `.pdf` 结尾的文件名，不包含目录。
+- `src` 留空会显示该语言尚未提供；`enabled: false` 隐藏整个入口。
+- 单份文件不超过 20 MB。推荐同站点 PDF；外部文件需要允许 CORS，跨域失败时保留独立打开链接。
+- 通过内置 PDF.js 渲染，不依赖浏览器 PDF 插件。阅读、滚动和关闭简历不会改变背后的场景或退盘。
+
+## 操作与响应式布局
+
+| 操作 | 结果 |
+| --- | --- |
+| 点击待选软盘 | 插入作品，随后相机移到放大的介绍位置 |
+| 点击已插入软盘 / Eject / Esc | 退盘并返回初始最远位置 |
+| 屏幕外鼠标滚轮 / − / + | 在有限范围内缩放电脑 |
+| Reset | 有作品时回到插入机位；无作品时回到初始位置 |
+| Previous / Next | 切换项目，放大后待选软盘出画时仍可使用 |
+| 画布聚焦后左右方向键、Enter / Space | 选择并插入软盘 |
+
+初始最远位置、插入后的放大位置和手动近端分别控制。插入后的取景优先保留 **CRT 和已插入软盘**；电脑外壳和待选软盘可离开画面。不同宽高比使用不同软盘排列，手机端自动重算机位，不能简单套用桌面的固定相机坐标。
+
+页面使用固定动态视口，不产生整页滚动条；PDF、项目 iframe、署名弹层等内部内容保留独立滚动。支持 `prefers-reduced-motion`。
+
+## 测试与目录
+
+测试需要 Node.js 22 或更新版本，无需安装 npm 依赖：
 
 ```bash
 npm test
 ```
 
-Thirty-four geometry/animation tests cover real GLB transforms, per-project labels, UV orientation and clearance, inserted width, interrupted motion, camera focus, reduced motion, project navigation, wheel normalization, boundary scroll capture, and perspective containment at six canvas sizes. Browser QA captures remain in the original local development workspace.
+测试涵盖配置校验、软盘真实模型与标签、插入尺寸及动画、相机边界、介绍 / 交互机位一致性、iframe 投影、PDF 校验与语言切换。发布前验证了 66 项测试。
 
-## Personalize
+可选的 [Demo 录制工具](demo/README.md) 使用 `?demo=record` 开启，直接下载 WebM，无需上传接口或独立后端。它只记录本页面的画布和 DOM，不包含跨域项目 iframe 的内容。
 
-Edit `index.html` to replace the template `Alex Morgan` details, social links, and the `projects` array. Each project needs a title, description, destination link, and display color. The project-card illustration currently reuses the selected concept artwork. Projects without a real destination hide their outbound CTA.
+```text
+macintosh-portfolio/
+├── index.html                 # 页面结构与样式
+├── config.json                # 当前作品集配置
+├── config.example.json        # 通用配置起点
+├── app.mjs / configuration.mjs
+├── hero.mjs / scene-*.mjs      # 3D 场景与动画
+├── project-*.mjs               # 介绍、纸标签
+├── screen-portal.mjs           # CRT 内交互网页
+├── resume*.mjs / resume-preview.html
+├── assets/                    # 模型、截图、双语 PDF
+├── vendor/                    # Three.js、html2canvas、PDF.js 与许可证
+├── tests/                     # Node 内置测试
+└── tools/                     # 仓库原有模型编辑工具
+```
 
-Disk label names and accent colors automatically come from that same `projects` array. `project-label.mjs` draws the project title, disk number, matching color band, and ruled paper; no manual texture editing is needed. Labels are generated once on loading, not every animation frame.
+原有 `CONCEPT.md`、`WORKLOG.md`、`models/` 和 `tools/` 作为设计 / 工具资料保留，不是当前运行时的配置入口。
 
-The geometry adapter is specific to the supplied assets and named material/mesh landmarks; replacing either GLB requires recalibrating those landmarks in `scene-geometry.mjs` and `hero.mjs`.
+## 静态部署
 
-## Attribution
+将本目录的运行文件与 `assets/`、`vendor/` 保持相对路径上传到静态站点即可；没有构建产物。可放在站点根目录，也可放在 `/macintosh-portfolio/` 等子目录。部署服务需正确提供 `.mjs` JavaScript、`.wasm` WebAssembly 和 PDF 文件。
 
-The included footer preserves the original model credits and licenses.
+本仓库是个人主页部署版本。根目录 `index.html` 使用 `<base href="/macintosh-portfolio/">` 共享本目录资源和配置，GitHub Pages 工作流发布整个仓库。更新页面结构时请同步根目录入口并保留该 base 标签；日常修改资料、作品、图片和简历只需更新本目录配置与资源。通用模板见 [MyPortfolioTemplates](https://github.com/Amory0709/MyPortfolioTemplates)。
+
+只上传需要公开的资源。`tests/`、`docs/` 和旧设计工具不影响模板运行，部署时可省略；不要遗漏简历的 `resume-preview.html`、`resume-preview.mjs` 或 `vendor/pdfjs/`。
+
+## 许可与署名
+
+- 本仓库代码：[MIT](../LICENSE)。
+- Macintosh 模型：Daz，[Macintosh 128K Computer (1984)](https://skfb.ly/6SLnE)，[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)。**该模型带有非商业限制**，不应把仓库代码的 MIT 许可当作模型的商用授权。
+- 软盘模型：Kyan0s，[Floppy Disk 3.5](https://skfb.ly/Jnrs)，[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。
+- Three.js r160：[MIT](vendor/three/LICENSE)。
+- html2canvas：[MIT](vendor/html2canvas.LICENSE)。
+- PDF.js 5.6.205：[Apache-2.0](vendor/pdfjs/LICENSE)，运行所需字体等文件随包保留其许可证。
+- 示例项目截图以及截图内的地图、模型和页面内容仍归各自来源，见 [预览来源](assets/projects/README.md)。
+
+请保留必要署名；原页面的 Model credits 入口仍可查看模型来源。

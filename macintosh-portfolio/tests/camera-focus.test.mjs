@@ -6,6 +6,43 @@ import { CameraFocus, wheelPixels, ZOOM_LIMITS } from '../camera-focus.mjs';
 register(new URL('./import-map.mjs', import.meta.url));
 const { HeroView } = await import('../hero.mjs');
 
+test('intro and live project keep identical camera poses, including manual zoom and return', async () => {
+  const previousDocument=globalThis.document;
+  const nodes=new Map();
+  const getElementById=id=>{
+    if(!nodes.has(id)) nodes.set(id, {style:{setProperty(){}},dataset:{},classList:{add(){},remove(){},toggle(){}},removeAttribute(){}});
+    return nodes.get(id);
+  };
+  globalThis.document={getElementById};
+  try {
+    const h=Object.create(HeroView.prototype);
+    Object.assign(h, {
+      active:0,projectFocus:.25,screenRevision:0,reducedMotion:false,
+      projects:[{title:'Test',desc:'Intro',link:'https://example.com/',embed:{enabled:true,url:'https://example.com/'},
+        screen:{titleSize:38,descriptionSize:20,buttonSize:18,buttonText:'View project',image:{src:'',alt:'',fit:'contain'}}}],
+      cameraFocus:new CameraFocus(),camera:new THREE.PerspectiveCamera(),baseCamera:new THREE.Vector3(0,1,5),cameraTarget:new THREE.Vector3(0,1,0),
+      pointer:new THREE.Vector2(.8,.7),targetPointer:new THREE.Vector2(.8,.7),
+      canvas:{dataset:{},focus(){}},inner:getElementById('screenInner'),status:getElementById('sceneStatus'),actions:getElementById('projectActions'),
+      screen:{material:{color:new THREE.Color()}},paintScreen(){},updateDiagnostics(){},
+      portal:{active:false,open(){this.active=true;},close(){this.active=false;},update(){}}
+    });
+    h.showProject(0);h.updateCamera(performance.now()+1500);
+    assert.equal(h.cameraFocus.value,.25);
+    const snapshot=()=>[...h.camera.position.toArray(),...h.camera.quaternion.toArray()];
+    let before=snapshot();
+    h.openProject();h.updateCamera(performance.now());
+    assert.deepEqual(snapshot(),before,'opening does not dolly or remove a different parallax pose');
+    h.closeProject();h.updateCamera(performance.now());
+    assert.deepEqual(snapshot(),before,'returning to intro does not change the camera');
+    h.cameraFocus.zoom(-160,performance.now(),true);h.updateCamera(performance.now());
+    before=snapshot();const manuallySet=h.cameraFocus.value;
+    h.openProject();h.closeProject();h.updateCamera(performance.now());
+    assert.equal(h.cameraFocus.value,manuallySet);
+    assert.deepEqual(snapshot(),before,'manual zoom survives both screen modes');
+    await Promise.resolve();
+  } finally {globalThis.document=previousDocument;}
+});
+
 test('focus eases into the close view and stays there until ejection', () => {
   const focus = new CameraFocus();
   focus.set(true, 100);
@@ -16,6 +53,20 @@ test('focus eases into the close view and stays there until ejection', () => {
   focus.set(false, 10000);
   assert.equal(focus.update(10400), 0.5);
   assert.equal(focus.update(10800), 0);
+});
+
+test('wheel and automatic transitions cannot retreat beyond the saved far boundary', () => {
+  const focus=new CameraFocus();
+  assert.equal(focus.value,ZOOM_LIMITS.min);
+  assert.equal(focus.zoom(320,0,true),false);
+  focus.transition(-100,0,500,'auto',true);
+  assert.equal(focus.value,0);
+  focus.transition(5,1,500,'auto',true);
+  assert.equal(focus.value,ZOOM_LIMITS.max);
+  focus.set(false,2,true);
+  assert.equal(focus.value,0);
+  focus.transition(NaN,3,500,'auto',true);
+  assert.equal(focus.value,0);
 });
 
 test('mid-zoom interruption reverses from the current position without jumping', () => {

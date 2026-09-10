@@ -2,8 +2,10 @@ import * as THREE from './vendor/three/three.module.js';
 import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from './vendor/three/addons/environments/RoomEnvironment.js';
 import html2canvas from './vendor/html2canvas.esm.js';
-import { CameraFocus, wheelPixels } from './camera-focus.mjs?v=2';
-import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose } from './scene-layout.mjs';
+import { CameraFocus, wheelPixels } from './camera-focus.mjs?v=4';
+import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose, projectViewFocus, anchorFarthestView, FAR_REFERENCE_FOCUS } from './scene-layout.mjs?v=6';
+import { ScreenPortal } from './screen-portal.mjs?v=2';
+import { projectScreen } from './project-screen.mjs?v=3';
 import { createProjectLabelTexture, mapLabelGeometry } from './project-label.mjs';
 import { prepareFloppy, mapScreenGeometry, fitFloppyToDrive, pointerNDC, ease } from './scene-geometry.mjs?v=5';
 
@@ -69,16 +71,24 @@ export class HeroView {
     document.querySelector('.page').addEventListener('wheel', event => this.onWheel(event), { passive: false });
     document.getElementById('zoomIn').addEventListener('click', () => this.cameraFocus.zoom(-160, performance.now(), this.reducedMotion));
     document.getElementById('zoomOut').addEventListener('click', () => this.cameraFocus.zoom(160, performance.now(), this.reducedMotion));
-    document.getElementById('zoomReset').addEventListener('click', () => this.cameraFocus.set(this.active !== -1, performance.now(), this.reducedMotion));
+    document.getElementById('zoomReset').addEventListener('click', () => {
+      if (this.active !== -1) this.cameraFocus.transition(this.projectFocus, performance.now(), 650, 'auto', this.reducedMotion);
+      else this.cameraFocus.set(this.active !== -1, performance.now(), this.reducedMotion);
+    });
     document.getElementById('ejectButton').addEventListener('click', () => this.eject());
     document.getElementById('previousProject').addEventListener('click', () => this.cycleProject(-1));
     document.getElementById('nextProject').addEventListener('click', () => this.cycleProject(1));
+    document.getElementById('pcCta').addEventListener('click', () => this.openProject());
+    document.getElementById('activeProjectLink').addEventListener('click', event => {
+      if (this.portal?.active) { event.preventDefault(); this.closeProject(); }
+      else if (this.canEmbed()) { event.preventDefault(); this.openProject(); }
+    });
     document.addEventListener('keydown', event => { if (event.key === 'Escape') this.eject(); });
     canvas.addEventListener('keydown', event => {
       if (!this.floppies.length) return;
       if (['ArrowLeft', 'ArrowRight'].includes(event.key)) {
         event.preventDefault();
-        this.setHovered((Math.max(0, this.hovered) + (event.key === 'ArrowRight' ? 1 : 7)) % 8);
+        this.setHovered((Math.max(0, this.hovered) + (event.key === 'ArrowRight' ? 1 : this.projects.length - 1)) % this.projects.length);
       }
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault(); this.insert(Math.max(0, this.hovered));
@@ -130,6 +140,11 @@ export class HeroView {
       if (!this.screen) throw new Error('The supplied Mac is missing its CRT mesh.');
       this.macBounds = new THREE.Box3().setFromObject(this.mac);
       this.screen.geometry = mapScreenGeometry(this.screen);
+      this.screenBounds = new THREE.Box3().setFromObject(this.screen);
+      this.portal = new ScreenPortal(this.screen, this.canvas, document.getElementById('screenPortal'), () => {
+        // iframe load is not proof of success (CSP/X-Frame-Options may block it).
+        this.status.textContent = `${this.projects[this.active].title} · Interact inside the screen. Blank? Use ↗.`;
+      });
       this.screen.material = new THREE.MeshBasicMaterial({ color: '#151615', toneMapped: false });
       this.screen.castShadow = false;
       this.screen.receiveShadow = false;
@@ -181,6 +196,7 @@ export class HeroView {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.sceneDirty = true;
     this.baseCamera = this.mobile ? new THREE.Vector3(0, 1.5, 5.4) : new THREE.Vector3(0, 1.10, 4.65);
     this.cameraTarget = this.mobile ? new THREE.Vector3(0, 0.45, 0) : new THREE.Vector3(0, 0.55, 0);
     if (this.floppies.length) this.arrangeFloppies();
@@ -194,12 +210,20 @@ export class HeroView {
     );
     const homes = this.floppies.map(f => boundsAt(f.home, f.homeQuaternion, f.homeScale).expandByScalar(0.05));
     const inserted = boundsAt(this.seatedPosition(), new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)), this.insertScale);
-    this.cameraFrames = sceneCameraFrames(this.macBounds, homes, inserted, this.camera.aspect, this.layoutMode);
+    this.cameraFrames = sceneCameraFrames(this.macBounds, homes, inserted, this.camera.aspect, this.layoutMode, this.screenBounds);
+    const bounds = [this.macBounds, ...homes, inserted];
+    // Preserve the saved desktop composition; fit all disks on narrow phones.
+    const anchor = this.mobile ? Math.min(FAR_REFERENCE_FOCUS, projectViewFocus(this.cameraFrames, bounds, this.camera.aspect)) : FAR_REFERENCE_FOCUS;
+    anchorFarthestView(this.cameraFrames, anchor);
+    // User-approved insertion view (2026-09-10 21:46): prioritize the CRT
+    // and seated disk, not the waiting row or the full computer casing.
+    this.projectFocus = projectViewFocus(this.cameraFrames, [this.screenBounds, inserted], this.camera.aspect, .95);
+    if (this.floppies[this.active]?.state === 'inserted') this.cameraFocus.transition(this.projectFocus, performance.now(), 250, 'auto', this.reducedMotion);
   }
 
   arrangeFloppies() {
     this.floppies.forEach((f, index) => {
-      const { scale, position } = diskPlacement(index, this.layoutMode || (this.mobile ? 'portrait' : 'row'));
+      const { scale, position } = diskPlacement(index, this.layoutMode || (this.mobile ? 'portrait' : 'row'), this.floppies.length);
       f.homeScale = scale;
       f.home = position;
       const facing = Math.atan2(-f.home.x, this.baseCamera.z - f.home.z);
@@ -225,7 +249,7 @@ export class HeroView {
   async paintScreen() {
     const revision = ++this.screenRevision;
     const bitmap = await html2canvas(this.inner, {
-      backgroundColor: '#151615', scale: 2, logging: false, scrollX: 0, scrollY: 0
+      backgroundColor: '#151615', scale: 2, logging: false, scrollX: 0, scrollY: 0, useCORS: true
     });
     if (revision !== this.screenRevision) return;
     const previous = this.screen.material.map;
@@ -258,7 +282,7 @@ export class HeroView {
     // Preserve browser zoom shortcuts and independently scrollable accessibility panels.
     if (!this.mac || !event.cancelable || event.ctrlKey || event.metaKey || event.shiftKey ||
       Math.abs(event.deltaX) >= Math.abs(event.deltaY) ||
-      event.target?.closest?.('.credit-block, .accessible-picker')) return;
+      event.target?.closest?.('.credit-block, .accessible-picker, .screen-portal')) return;
     const delta = wheelPixels(event.deltaY, event.deltaMode, this.canvas.clientHeight);
     event.preventDefault();
     this.cameraFocus.zoom(delta, performance.now(), this.reducedMotion);
@@ -280,7 +304,7 @@ export class HeroView {
     if (hit?.object === this.screen && this.active !== -1 && hit.uv) {
       const root = this.inner.getBoundingClientRect();
       const x = hit.uv.x * root.width, y = (1 - hit.uv.y) * root.height;
-      for (const link of this.inner.querySelectorAll('.project-card a')) {
+      for (const link of this.inner.querySelectorAll('.project-card a, .project-card button')) {
         const r = link.getBoundingClientRect();
         if (x >= r.left - root.left && x <= r.right - root.left && y >= r.top - root.top && y <= r.bottom - root.top) {
           link.click(); break;
@@ -309,6 +333,7 @@ export class HeroView {
 
   insert(index) {
     if (!this.floppies[index]) return;
+    this.closeProject(false);
     if (this.active === index) { this.eject(); return; }
     this.cameraFocus.set(false, performance.now(), this.reducedMotion);
     if (this.active !== -1) this.returnHome(this.floppies[this.active]);
@@ -330,24 +355,23 @@ export class HeroView {
     this.updateDiagnostics();
   }
 
-  showProject(index) {
-    this.cameraFocus.set(true, performance.now(), this.reducedMotion);
+  showProject(index, focusCamera = true) {
+    if (focusCamera) this.cameraFocus.transition(this.projectFocus, performance.now(), 1200, 'auto', this.reducedMotion);
     const p = this.projects[index];
-    document.getElementById('pcTitle').textContent = p.title;
-    document.getElementById('pcDesc').textContent = p.desc;
-    document.getElementById('pcCta').href = p.link;
-    document.getElementById('pcCta').hidden = p.link === '#';
-    document.getElementById('pcCta').textContent = p.link === '#' ? 'Preview project' : 'View project →';
+    projectScreen(p).then(() => {
+      if (this.active === index && !this.portal?.active) this.paintScreen();
+    }).catch(error => console.error('Project preview could not render.', error));
     this.inner.classList.add('has-project');
-    this.paintScreen();
     this.status.textContent = p.title;
     const link = document.getElementById('activeProjectLink');
-    link.href = p.link; link.hidden = p.link === '#';
+    link.href = p.link; link.hidden = p.link === '#' && !this.canEmbed();
+    link.textContent = `${p.screen?.buttonText || 'View project'} →`;
     this.actions.hidden = false;
     this.updateDiagnostics();
   }
 
   eject() {
+    this.closeProject(false);
     this.cameraFocus.set(false, performance.now(), this.reducedMotion);
     if (this.active === -1) return;
     this.returnHome(this.floppies[this.active]);
@@ -364,6 +388,45 @@ export class HeroView {
     this.insert((this.active + direction + this.projects.length) % this.projects.length);
   }
 
+  canEmbed() {
+    const project = this.projects[this.active];
+    return Boolean(project?.embed?.enabled && project.embed.url);
+  }
+
+  openProject() {
+    const project = this.projects[this.active];
+    if (!project) return;
+    if (!this.canEmbed()) {
+      if (project.link !== '#') window.open(project.link, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    this.portal.open(project);
+    ++this.screenRevision; // Discard any intro rasterization still in flight.
+    this.sceneDirty = true;
+    // Intro and live project share the camera, including any manual zoom.
+    this.screen.material.color.set('#151615');
+    this.targetPointer.set(0, 0); this.pointer.set(0, 0);
+    document.getElementById('activeProjectLink').textContent = '← Intro';
+    const external = document.getElementById('externalProjectLink');
+    external.href = project.link !== '#' ? project.link : project.embed.url;
+    external.hidden = false;
+    this.status.textContent = `Opening ${project.title} inside the Mac…`;
+    this.canvas.dataset.screenMode = 'interactive';
+  }
+
+  closeProject(restoreFocus = true) {
+    if (!this.portal?.active) return;
+    this.portal.close();
+    this.sceneDirty = true;
+    this.screen.material.color.set('#ffffff');
+    document.getElementById('externalProjectLink').hidden = true;
+    this.canvas.dataset.screenMode = 'intro';
+    if (restoreFocus && this.active !== -1) {
+      this.showProject(this.active, false);
+      this.canvas.focus({ preventScroll: true });
+    }
+  }
+
   updateCamera(time) {
     const focus = this.cameraFocus.update(time, this.reducedMotion);
     let target;
@@ -377,12 +440,13 @@ export class HeroView {
       target = this.cameraTarget.clone();
       target.y += focus * (this.mobile ? 0.20 : 0.18);
     }
-    if (!this.reducedMotion) {
+    if (!this.reducedMotion && this.active === -1) {
       this.camera.position.x += this.pointer.x * 0.065;
       this.camera.position.y += this.pointer.y * 0.035;
     }
     this.camera.lookAt(target);
     this.camera.updateMatrixWorld();
+    this.portal?.update(this.camera);
     this.canvas.dataset.cameraFocus = focus.toFixed(3);
     this.canvas.dataset.cameraDistance = this.camera.position.z.toFixed(3);
     this.canvas.dataset.cameraZoomTarget = this.cameraFocus.target.toFixed(3);
@@ -401,8 +465,10 @@ export class HeroView {
     this.frame = requestAnimationFrame(next => this.tick(next));
     this.pointer.lerp(this.targetPointer, 0.06);
     this.updateCamera(time);
+    let objectsMoving = false;
     for (const f of this.floppies) {
       if (f.motion) {
+        objectsMoving = true;
         const m = f.motion;
         const t = Math.min(1, (time - m.start) / m.duration);
         const progress = ease(t);
@@ -414,10 +480,19 @@ export class HeroView {
       } else if (f.state === 'home') {
         const position = f.home.clone();
         if (this.hovered === f.index) position.y += 0.045;
+        objectsMoving ||= f.group.position.distanceToSquared(position) > 1e-8 || f.group.quaternion.angleTo(f.homeQuaternion) > .001;
         f.group.position.lerp(position, this.reducedMotion ? 1 : 0.12);
         f.group.quaternion.slerp(f.homeQuaternion, 0.12);
       }
     }
-    this.renderer.render(this.scene, this.camera);
+    // Once the live project is stationary inside the CRT, reuse the outer
+    // scene's frame so another WebGL app gets the GPU instead of redrawing
+    // an unchanged Macintosh and its shadows continuously.
+    const cameraKey = this.camera.matrixWorld.elements.join(',');
+    if (!this.portal?.active || this.sceneDirty || cameraKey !== this.lastCameraKey || objectsMoving) {
+      this.renderer.render(this.scene, this.camera);
+      this.lastCameraKey = cameraKey;
+      this.sceneDirty = false;
+    }
   }
 }

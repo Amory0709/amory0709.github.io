@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GLB Color Editor</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #1a1a1a; color: #eee; overflow: hidden; }
+  #viewport { position: absolute; inset: 0; }
+  #panel {
+    position: absolute; top: 16px; right: 16px;
+    background: rgba(28, 28, 30, 0.92);
+    padding: 14px 16px; border-radius: 10px; width: 260px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.08);
+    z-index: 10;
+  }
+  #panel h2 { margin: 0 0 12px 0; font-size: 13px; letter-spacing: 0.5px; opacity: 0.7; text-transform: uppercase; }
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .row label { font-size: 12px; color: #aaa; flex-shrink: 0; }
+  input[type=color] { width: 100%; height: 36px; border: 1px solid #444; border-radius: 6px; background: none; cursor: pointer; padding: 2px; }
+  button {
+    width: 100%; padding: 8px 10px; margin-top: 6px;
+    background: #2a6df4; color: white; border: none; border-radius: 6px;
+    cursor: pointer; font-size: 12px; font-weight: 500;
+    transition: background 0.15s;
+  }
+  button:hover { background: #4080ff; }
+  button.secondary { background: #444; }
+  button.secondary:hover { background: #555; }
+  button.export { background: #1f9d55; }
+  button.export:hover { background: #2bb866; }
+  #status {
+    margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);
+    font-size: 11px; color: #888; min-height: 32px; word-break: break-all;
+  }
+  #status .name { color: #5ac8fa; font-weight: 600; }
+  #status .hint { color: #888; font-style: italic; }
+  #toolbar {
+    position: absolute; top: 16px; left: 16px; z-index: 10;
+    display: flex; gap: 8px;
+  }
+  #toolbar button { width: auto; margin: 0; }
+  #drop {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    padding: 40px 56px; background: rgba(28, 28, 30, 0.95);
+    border: 2px dashed #555; border-radius: 12px; text-align: center;
+    font-size: 14px; pointer-events: none; z-index: 5;
+  }
+  #drop small { color: #888; font-size: 11px; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<div id="viewport"></div>
+
+<div id="toolbar">
+  <button class="secondary" id="load">📁 加载 GLB</button>
+  <button class="secondary" id="frame">🎯 重新构图</button>
+</div>
+
+<div id="panel">
+  <h2>🎨 部件上色</h2>
+  <div class="row">
+    <label>颜色</label>
+  </div>
+  <input type="color" id="color" value="#92e0ff">
+  <button id="apply">应用到选中部件</button>
+  <button class="secondary" id="reset">全部恢复白色</button>
+  <button class="export" id="export">💾 导出改后的 GLB</button>
+  <div id="status">
+    <span class="hint">点击下方按钮加载 GLB，或拖拽文件到页面</span>
+  </div>
+</div>
+
+<div id="drop" style="display:none">拖拽 GLB 文件到这里<br><small>松开即加载</small></div>
+
+<input type="file" id="file" accept=".glb,.gltf">
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+let scene, camera, renderer, controls, model;
+let selected = null;
+const originals = new Map();   // uuid -> original material (for reset)
+const raycaster = new THREE.Raycaster();
+const downXY = { x: 0, y: 0, t: 0 };
+
+function getDefaultModelUrl() {
+  // Allow ?model=some.glb to override, default to tintable floppy
+  const params = new URLSearchParams(location.search);
+  if (params.get('model')) return params.get('model');
+  return '../models/floppy_disk_tintable.glb';
+}
+
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1a1a1a);
+
+  camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 50000);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  document.getElementById('viewport').appendChild(renderer.domElement);
+
+  // Lighting — bright setup so PBR materials read clearly
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 2.0);
+  key.position.set(200, 300, 200); scene.add(key);
+  const fill = new THREE.DirectionalLight(0xffffff, 1.0);
+  fill.position.set(-200, 100, -200); scene.add(fill);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.8);
+  rim.position.set(0, -100, 300); scene.add(rim);
+
+  // Environment so PBR materials show their roughness properly
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  // Click vs drag detection
+  renderer.domElement.addEventListener('pointerdown', e => {
+    downXY.x = e.clientX; downXY.y = e.clientY; downXY.t = performance.now();
+  });
+  renderer.domElement.addEventListener('pointerup', e => {
+    const dx = e.clientX - downXY.x, dy = e.clientY - downXY.y;
+    const dt = performance.now() - downXY.t;
+    if (Math.hypot(dx, dy) < 5 && dt < 500) handleClick(e);
+  });
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  animate();
+}
+
+function handleClick(e) {
+  if (!model) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((e.clientX - rect.left) / rect.width) * 2 - 1,
+    -((e.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  raycaster.setFromCamera(mouse, camera);
+  const meshes = [];
+  model.traverse(o => { if (o.isMesh) meshes.push(o); });
+  const hits = raycaster.intersectObjects(meshes, false);
+  if (hits.length) selectMesh(hits[0].object);
+}
+
+function selectMesh(mesh) {
+  // Un-highlight previous
+  if (selected && selected.material) {
+    selected.material.emissive.setHex(0x000000);
+  }
+  selected = mesh;
+  // Highlight via subtle emissive
+  if (selected.material) {
+    if (selected.material.emissive) selected.material.emissive.setHex(0x222244);
+  }
+  document.getElementById('status').innerHTML =
+    `已选中: <span class="name">${mesh.name || '(未命名)'}</span><br><span class="hint">${mesh.geometry?.attributes?.position?.count || 0} 顶点</span>`;
+}
+
+function applyColor() {
+  if (!selected) {
+    flash('先点击模型上选一个部件');
+    return;
+  }
+  const hex = document.getElementById('color').value;
+  // Clone material so other meshes sharing the same material aren't affected
+  if (!originals.has(selected.uuid)) {
+    originals.set(selected.uuid, selected.material);
+  }
+  selected.material = selected.material.clone();
+  selected.material.color.set(hex);
+  flash(`✅ ${selected.name} → ${hex}`);
+}
+
+function resetAll() {
+  for (const [uuid, mat] of originals) {
+    scene.traverse(o => {
+      if (o.uuid === uuid) {
+        o.material = mat;
+        if (o.material.emissive) o.material.emissive.setHex(0x000000);
+      }
+    });
+  }
+  originals.clear();
+  selected = null;
+  flash('↺ 已恢复初始状态');
+}
+
+function flash(msg) {
+  const s = document.getElementById('status');
+  const prev = s.innerHTML;
+  s.innerHTML = msg;
+  clearTimeout(flash._t);
+  flash._t = setTimeout(() => { s.innerHTML = prev; }, 1800);
+}
+
+// File loading
+function loadGLBFromUrl(url) {
+  const loader = new GLTFLoader();
+  loader.load(url, gltf => {
+    if (model) {
+      scene.remove(model);
+      model.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    }
+    model = gltf.scene;
+    scene.add(model);
+    originals.clear();
+    selected = null;
+    fitToModel();
+    document.getElementById('drop').style.display = 'none';
+    document.getElementById('status').innerHTML =
+      `<span class="hint">已加载 ✅ 点模型上的部件开始上色</span>`;
+  }, undefined, err => {
+    flash('❌ 加载失败: ' + err.message);
+  });
+}
+
+function loadGLBFromFile(file) {
+  loadGLBFromUrl(URL.createObjectURL(file));
+}
+
+document.getElementById('load').addEventListener('click', () => document.getElementById('file').click());
+document.getElementById('file').addEventListener('change', e => {
+  if (e.target.files[0]) loadGLBFromFile(e.target.files[0]);
+});
+document.getElementById('frame').addEventListener('click', fitToModel);
+document.getElementById('apply').addEventListener('click', applyColor);
+document.getElementById('reset').addEventListener('click', resetAll);
+document.getElementById('export').addEventListener('click', exportGLB);
+
+// Drag and drop
+const dropEl = document.getElementById('drop');
+let dragCount = 0;
+addEventListener('dragenter', e => { e.preventDefault(); dragCount++; dropEl.style.display = 'block'; });
+addEventListener('dragover',  e => { e.preventDefault(); });
+addEventListener('dragleave', e => { e.preventDefault(); dragCount--; if (dragCount <= 0) { dragCount = 0; dropEl.style.display = 'none'; } });
+addEventListener('drop', e => {
+  e.preventDefault();
+  dragCount = 0;
+  dropEl.style.display = 'none';
+  if (e.dataTransfer.files.length) loadGLBFromFile(e.dataTransfer.files[0]);
+});
+
+function fitToModel() {
+  if (!model) return;
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3()).length();
+  const center = box.getCenter(new THREE.Vector3());
+  camera.near = Math.max(size / 1000, 0.01);
+  camera.far = size * 100;
+  camera.position.copy(center);
+  camera.position.x += size * 0.7;
+  camera.position.y += size * 0.5;
+  camera.position.z += size * 0.9;
+  controls.target.copy(center);
+  controls.update();
+}
+
+function exportGLB() {
+  if (!model) { flash('❌ 没有加载模型'); return; }
+  // Strip highlight emissive before exporting
+  const restore = [];
+  if (selected && selected.material.emissive) {
+    restore.push([selected, selected.material.emissive.getHex()]);
+    selected.material.emissive.setHex(0x000000);
+  }
+  const exporter = new GLTFExporter();
+  exporter.parse(
+    scene,
+    result => {
+      const blob = new Blob([result], { type: 'model/gltf-binary' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'edited.glb'; a.click();
+      URL.revokeObjectURL(url);
+      // Restore emissive highlight
+      for (const [mesh, hex] of restore) mesh.material.emissive.setHex(hex);
+      flash('💾 已下载 edited.glb');
+    },
+    err => { flash('❌ 导出失败: ' + err.message); },
+    { binary: true, onlyVisible: true }
+  );
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+init();
+// Auto-load default model so the page is ready to use immediately
+setTimeout(() => {
+  const url = getDefaultModelUrl();
+  loadGLBFromUrl(url);
+  document.getElementById('status').innerHTML =
+    `<span class="hint">自动加载 ${url} 中…</span>`;
+}, 50);
+</script>
+</body>
+</html>

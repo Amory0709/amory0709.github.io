@@ -56,7 +56,7 @@ export function prepareFloppy(source, { includeLabel = true } = {}) {
   return result;
 }
 
-/** Use the original curved CRT mesh. No plane, CSS projection or overlay. */
+/** Texture mode uses the original curved CRT. Interactive projection is separate. */
 export function mapScreenGeometry(screen) {
   const geometry = screen.geometry.clone();
   geometry.computeBoundingBox();

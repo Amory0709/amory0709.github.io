@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Alex Morgan · Designer & Developer</title>
+<title>Portfolio</title>
+  <meta name="description" content="" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='14' fill='%23f5f5f5'/%3E%3Crect x='20' y='14' width='60' height='50' rx='4' fill='%23e8e0d0' stroke='%23111' stroke-width='2'/%3E%3Crect x='26' y='22' width='48' height='32' rx='2' fill='%23c8c8c8'/%3E%3Crect x='50' y='66' width='30' height='4' fill='%23111'/%3E%3C/svg%3E" />
   <style>
     /* =========================================================
@@ -493,6 +494,79 @@
       .footer { padding: 1px 0; }
       .accessible-picker:focus-within { bottom: 52px; }
     }
+    /* Configurable text and link counts must not push the page wider. */
+    .header { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.7fr) auto; }
+    .brand-block, .nav { min-width: 0; }
+    .brand, .brand-sub, #copyright { overflow-wrap: anywhere; }
+    .nav { grid-column: 2; flex-wrap: wrap; gap: 2px clamp(12px, 2vw, 28px); }
+    .nav a { max-width: 100%; overflow-wrap: anywhere; }
+    .socials { grid-column: 3; max-width: 180px; flex-wrap: wrap; gap: 8px; }
+    .socials a { min-width: 28px; justify-content: center; }
+    .nav:empty, .socials:empty { display: none; }
+    .pc-logo { max-width: 140px; overflow-wrap: anywhere; }
+    .startup-error { position: fixed; inset: 40% 12%; padding: 20px; background: white; }
+    @media (max-width: 760px) {
+      .header { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+      .nav { grid-column: 1 / -1; grid-row: 2; width: 100%; justify-content: space-between; }
+      .socials { display: flex; grid-column: 2; grid-row: 1; gap: 4px; max-width: 160px; }
+      .socials svg { width: 18px; height: 18px; }
+    }
+    .hero-canvas-wrap { overflow: hidden; }
+    .screen-portal { position: absolute; left: 0; top: 0; z-index: 2; transform-origin: 0 0; border-radius: 28px; overflow: hidden; background: #fafafa; touch-action: auto; }
+    .screen-portal[hidden] { display: none; }
+    .screen-portal iframe { display: block; width: 100%; height: 100%; border: 0; background: white; }
+    #externalProjectLink { min-width: 28px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+    #externalProjectLink[hidden] { display: none; }
+    .project-card { inset: 12px 18px; padding: 10px 16px 14px; gap: 10px; border: 1px solid #111; border-radius: 0; font-family: "Helvetica Neue", Arial, sans-serif; }
+    .screen-inner.has-project { background: #fafafa; }
+    .pc-row1 { flex: 0 0 24px; }
+    .pc-row1[hidden] { display: none; }
+    .pc-logo { font-size: 20px; }
+    .pc-body { flex: 1; flex-direction: column; gap: 10px; min-height: 0; }
+    .pc-title { flex: 0 0 auto; font-size: var(--screen-title-size, 40px); line-height: 1.08; overflow-wrap: anywhere; border-bottom: 1px solid #111; padding-bottom: 8px; letter-spacing: -.025em; }
+    .pc-desc { flex: 0 0 auto; font-size: var(--screen-description-size, 17px); line-height: 1.25; overflow-wrap: anywhere; color: #111; }
+    .pc-cta { flex: 0 0 auto; align-self: stretch; font: 700 var(--screen-button-size, 18px)/1.2 "Helvetica Neue", Arial, sans-serif; margin: 0 2px 2px 0; padding: 8px 14px; border: 1.5px solid #111; border-radius: 0; background: #fafafa; color: #111; box-shadow: 2px 2px 0 #111; text-align: center; }
+    .pc-cta:hover { background: #ededeb; }
+    .pc-cta:active { box-shadow: none; }
+    .pc-cta:focus-visible { outline: 2px solid #111; outline-offset: 3px; }
+    .pc-right { flex: 1 1 0; min-height: 0; border: 1px solid #111; border-radius: 0; background: #f1f1ef; }
+    .pc-cover { width: 100%; height: 100%; aspect-ratio: auto; }
+    .pc-cover img { position: static; width: 100%; height: 100%; object-fit: cover; }
+    .pc-cover[data-fit='contain'] img { object-fit: contain; }
+    .pc-cover[data-fit='concept'] { height: auto; aspect-ratio: 200 / 230; }
+    .pc-cover[data-fit='concept'] img { position: absolute; width: 768%; height: auto; left: -380%; top: -121.73913%; }
+    .pc-cover img[hidden], #artworkFallback[hidden] { display: none; }
+    #artworkFallback { padding: 18px; font: 18px/1.4 sans-serif; }
+    .without-artwork .pc-right { display: none; }
+    .without-artwork .pc-desc { flex: 1; padding-top: 12px; }
+    .header-actions { grid-column: 3; display: flex; align-items: center; justify-content: flex-end; gap: 14px; min-width: 0; }
+    .resume-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; color: #111; }
+    .resume-button svg { display: block; width: 18px; height: 18px; }
+    .resume-button:hover { background: #ededeb; }
+    .resume-button[hidden], .resume-dialog [hidden] { display: none !important; }
+    .resume-dialog { width: min(960px, calc(100vw - 40px)); height: min(1000px, calc(100dvh - 40px)); max-width: none; max-height: none; margin: auto; padding: 0; border: 1px solid #111; background: #fafafa; color: #111; overflow: hidden; box-shadow: 6px 6px 0 #111; }
+    .resume-dialog::backdrop { background: #1119; }
+    .resume-dialog[open] { display: flex; flex-direction: column; }
+    .resume-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; padding: 16px 20px; border-bottom: 1px solid #111; }
+    .resume-toolbar h2 { margin: 0 auto 0 0; font-size: 22px; }
+    .resume-languages { display: flex; border: 1px solid #111; }
+    .resume-toolbar button, .resume-toolbar a { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 12px; font-size: 14px; }
+    .resume-languages button[aria-pressed='true'] { color: #fafafa; background: #111; }
+    .resume-download { border: 1px solid #111; font-weight: 600; }
+    .resume-toolbar a:hover, #resumeClose:hover { text-decoration: underline; }
+    .resume-toolbar :focus-visible, .resume-button:focus-visible { outline: 2px solid #111; outline-offset: 3px; }
+    .resume-status { margin: 0; padding: 12px 20px; font-size: 13px; line-height: 1.5; color: #555; }
+    .resume-preview { display: block; flex: 1; min-height: 0; width: 100%; border: 0; background: #e8e8e6; }
+    @media (max-width: 760px) {
+      .header-actions { grid-column: 2; grid-row: 1; gap: 8px; flex-wrap: wrap; max-width: 190px; }
+      .header-actions .socials { max-width: 110px; }
+      .resume-button { padding: 0; }
+      .resume-dialog { width: calc(100vw - 16px); height: calc(100dvh - 24px); box-shadow: 3px 3px 0 #111; }
+      .resume-toolbar { padding: 10px 12px; gap: 8px; }
+      .resume-toolbar h2 { font-size: 20px; }
+      .resume-toolbar button, .resume-toolbar a { min-height: 44px; padding: 0 10px; }
+      .resume-status { padding: 10px 12px; }
+    }
   </style>
 </head>
 <body>
@@ -502,26 +576,13 @@
     <!-- =================== HEADER =================== -->
     <header class="header">
       <div class="brand-block">
-        <div class="brand">Alex Morgan</div>
-        <div class="brand-sub">Designer &amp; Developer</div>
+<div class="brand" id="profileName"></div>
+<div class="brand-sub" id="profileTitle"></div>
       </div>
-      <nav class="nav" aria-label="Main">
-        <a href="#about">About</a>
-        <a href="#work">Work</a>
-        <a href="#services">Services</a>
-        <a href="#blog">Blog</a>
-        <a href="#contact">Contact</a>
-      </nav>
-      <div class="socials" aria-label="Social links">
-        <a href="https://github.com/" target="_blank" rel="noopener" aria-label="GitHub">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.16c-3.2.69-3.87-1.37-3.87-1.37-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.76 2.69 1.25 3.34.96.1-.74.4-1.25.72-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.16 1.18.92-.26 1.9-.39 2.88-.39.98 0 1.96.13 2.88.39 2.2-1.49 3.16-1.18 3.16-1.18.62 1.58.23 2.75.11 3.04.73.81 1.18 1.84 1.18 3.1 0 4.42-2.7 5.39-5.27 5.68.41.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
-        </a>
-        <a href="https://linkedin.com/" target="_blank" rel="noopener" aria-label="LinkedIn">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.13 1.45-2.13 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.23 0H1.77C.79 0 0 .77 0 1.72v20.55C0 23.23.79 24 1.77 24h20.45c.98 0 1.77-.77 1.77-1.73V1.72C24 .77 23.21 0 22.23 0z"/></svg>
-        </a>
-        <a href="mailto:hello@alexmorgan.design" aria-label="Email">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 7l9 6 9-6"/></svg>
-        </a>
+<nav class="nav" id="mainNav" aria-label="Main"></nav>
+      <div class="header-actions">
+        <div class="socials" id="socialLinks" aria-label="Social links"></div>
+        <button id="resumeButton" class="resume-button" type="button" aria-label="简历 / CV" title="简历 / CV" aria-haspopup="dialog" aria-controls="resumeDialog" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg></button>
       </div>
     </header>
 
@@ -529,6 +590,7 @@
     <section class="hero" aria-label="Macintosh 128K portfolio">
       <div class="hero-canvas-wrap">
         <canvas class="hero-3d" id="hero3d" tabindex="0" role="application" aria-label="3D Macintosh portfolio. Scroll to zoom. Left and right arrows choose a disk, Enter inserts, Escape ejects and resets the view." aria-describedby="sceneStatus"></canvas>
+        <div class="screen-portal" id="screenPortal" hidden></div>
 
         <!-- Offscreen UI source, rasterized onto the original curved CRT mesh. -->
         <div class="screen-overlay" id="screenOverlay" aria-hidden="true">
@@ -557,23 +619,16 @@
 
             <!-- Active state: project card (rendered when a floppy is inserted) -->
             <div class="project-card" id="projectCard">
-              <div class="pc-row1">
-                <span class="pc-logo">AM</span>
-                <span class="pc-nav">
-                  <a href="#work">Work</a>
-                  <a href="#about">About</a>
-                  <a href="#contact">Contact</a>
-                </span>
+              <div class="pc-row1" id="projectNavigation" hidden>
+<span class="pc-nav" id="screenNav"></span>
               </div>
+              <div class="pc-title" id="pcTitle">—</div>
               <div class="pc-body">
-                <div class="pc-left">
-                  <div class="pc-title" id="pcTitle">—</div>
-                  <div class="pc-desc" id="pcDesc">—</div>
-                  <a class="pc-cta" id="pcCta" href="#" target="_blank" rel="noopener">View project →</a>
-                </div>
                 <div class="pc-right">
-                  <div class="pc-cover" id="pcCover"><img src="./reference/ui-mockup-inserted.png" alt="Colorful geometric sculpture from the selected concept"></div>
+                  <div class="pc-cover" id="pcCover"><img id="projectArtwork" alt=""><span id="artworkFallback" hidden>Preview unavailable</span></div>
                 </div>
+                <div class="pc-desc" id="pcDesc">—</div>
+                <button class="pc-cta" id="pcCta" type="button" tabindex="-1">View project →</button>
               </div>
             </div>
 
@@ -588,6 +643,7 @@
           <button id="previousProject" type="button" aria-label="Previous project">←</button>
           <button id="nextProject" type="button" aria-label="Next project">→</button>
           <a id="activeProjectLink" target="_blank" rel="noopener">View project ↗</a>
+          <a id="externalProjectLink" target="_blank" rel="noopener noreferrer" aria-label="Open project in a new tab" title="Open separately if embedding is unavailable" hidden>↗</a>
           <button id="ejectButton" type="button">Eject disk <kbd>Esc</kbd></button>
         </div></div>
         <div class="zoom-controls" role="group" aria-label="Camera zoom">
@@ -601,7 +657,7 @@
 
     <!-- =================== FOOTER =================== -->
     <footer class="footer">
-      <div>© Seaseahan · Respect to Steve Jobs</div>
+<div id="copyright"></div>
       <details class="model-credits"><summary>Model credits</summary><div class="credit-block">
         <span><b>Mac:</b> "Macintosh 128K Computer (1984)" by <a href="https://skfb.ly/6SLnE" target="_blank" rel="noopener">Daz</a> · <a href="http://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a></span>
         <span><b>Floppy:</b> "Floppy Disk 3.5&quot;" by <a href="https://skfb.ly/Jnrs" target="_blank" rel="noopener">Kyan0s</a> · <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></span>
@@ -609,6 +665,25 @@
     </footer>
 
   </div>
+
+  <template id="icon-github"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.16c-3.2.69-3.87-1.37-3.87-1.37-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.76 2.69 1.25 3.34.96.1-.74.4-1.25.72-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.16 1.18.92-.26 1.9-.39 2.88-.39.98 0 1.96.13 2.88.39 2.2-1.49 3.16-1.18 3.16-1.18.62 1.58.23 2.75.11 3.04.73.81 1.18 1.84 1.18 3.1 0 4.42-2.7 5.39-5.27 5.68.41.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg></template>
+  <template id="icon-linkedin"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.13 1.45-2.13 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.23 0H1.77C.79 0 0 .77 0 1.72v20.55C0 23.23.79 24 1.77 24h20.45c.98 0 1.77-.77 1.77-1.73V1.72C24 .77 23.21 0 22.23 0z"/></svg></template>
+  <template id="icon-email"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 7l9 6 9-6"/></svg></template>
+
+  <dialog id="resumeDialog" class="resume-dialog" aria-labelledby="resumeTitle">
+    <div class="resume-toolbar">
+      <h2 id="resumeTitle">简历</h2>
+      <div class="resume-languages" role="group" aria-label="Resume language">
+        <button id="resume-zh" type="button" lang="zh-CN" aria-pressed="true">中文</button>
+        <button id="resume-en" type="button" lang="en" aria-pressed="false">English</button>
+      </div>
+      <a id="resumeDownload" class="resume-download" download hidden>下载 PDF</a>
+      <a id="resumeExternal" target="_blank" rel="noopener noreferrer" hidden>独立打开</a>
+      <button id="resumeClose" type="button" autofocus>关闭</button>
+    </div>
+    <p id="resumeStatus" class="resume-status" role="status" aria-live="polite"></p>
+    <iframe id="resumePreview" class="resume-preview" title="简历 PDF" hidden></iframe>
+  </dialog>
 
   <script type="importmap">
   {
@@ -619,29 +694,8 @@
   }
   </script>
 
-  <script type="module">
-    import { HeroView } from './hero.mjs?v=10';
-
-    /* =========================================================
-       Project data — drives screen content + per-floppy color
-       ========================================================= */
-    const projects = [
-      { title: 'Sound of Humanity',      color: '#e53935', colorName: 'red',    desc: 'A real-time audio-reactive visualization of human voices from around the world. WebGL fragment shaders pulse with the rhythm of submitted recordings.', cover: 'linear-gradient(135deg, #ff8a65 0%, #ff5252 50%, #b71c1c 100%)', link: 'https://amory0709.github.io/datavis/soundofhumanity/' },
-      { title: 'Electoral Map',          color: '#fb8c00', colorName: 'orange', desc: 'Interactive U.S. electoral map with county-level drill-down, historical comparisons, and demographic overlays. Built with D3 + TopoJSON.',                            cover: 'linear-gradient(135deg, #ffb74d 0%, #ff9800 50%, #e65100 100%)', link: 'https://amory0709.github.io/datavis/Electoral/' },
-      { title: 'BLUEbikes Availability', color: '#fdd835', colorName: 'yellow', desc: 'Live bike-share station availability across Greater Boston. Auto-refreshing station map with predictive availability based on time-of-day patterns.',           cover: 'linear-gradient(135deg, #fff176 0%, #fdd835 50%, #f9a825 100%)', link: 'https://amory0709.github.io/datavis/BLUEbikes/' },
-      { title: '3D Asset Editor',        color: '#66bb6a', colorName: 'green',  desc: 'Browser-based mesh editor with collision authoring, Gaussian Splatting support, and direct export to glTF. React Three Fiber + zustand.',                      cover: 'linear-gradient(135deg, #aed581 0%, #7cb342 50%, #33691e 100%)', link: 'https://amory0709.github.io/3d-editor/' },
-      { title: 'MeshBVH X-Ray',          color: '#507aba', colorName: 'blue',   desc: 'Cross-section viewer for massive 3D meshes using BVH-accelerated raycasting. Slices through millions of triangles in real time.',                              cover: 'linear-gradient(135deg, #64b5f6 0%, #1e88e5 50%, #0d47a1 100%)', link: 'https://amory0709.github.io/three-mesh-bvh-xray/' },
-      { title: 'Procedural Sky Lab',     color: '#785489', colorName: 'purple', desc: 'A WebGL playground for physically-based atmospheric scattering. Real-time control over Rayleigh / Mie coefficients with HDR capture.',                       cover: 'linear-gradient(135deg, #ba68c8 0%, #8e24aa 50%, #4a148c 100%)', link: '#' },
-      { title: 'Type Specimen',          color: '#c56699', colorName: 'pink',   desc: 'An interactive typography specimen book covering 12 contemporary typefaces, with variable-axis sliders and a live rendering canvas.',                            cover: 'linear-gradient(135deg, #f48fb1 0%, #ec407a 50%, #ad1457 100%)', link: '#' },
-      { title: 'Vintage Web Archive',    color: '#2a2a2a', colorName: 'black',  desc: 'A nostalgic walk through hand-crafted websites of the early web. Editorial layout, full-bleed photography, and slow-scroll storytelling.',                       cover: 'linear-gradient(135deg, #555 0%, #2a2a2a 50%, #000 100%)',      link: '#' }
-    ];
-
-    const hero = new HeroView(document.getElementById('hero3d'), projects);
-    if (new URLSearchParams(location.search).get('demo') === 'record') {
-      const { installRecorder } = await import('./demo/recorder.mjs');
-      installRecorder(hero);
-    }
-  </script>
+  <script type="module" src="./app.mjs?v=12"></script>
+  <noscript><p class="startup-error">Please enable JavaScript to load this 3D portfolio.</p></noscript>
 
 </body>
 </html>

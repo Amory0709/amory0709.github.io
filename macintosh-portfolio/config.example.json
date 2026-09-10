@@ -1,0 +1,158 @@
+{
+  "profile": {
+    "name": "Your Name",
+    "title": "Designer & Developer",
+    "initials": "YN",
+    "email": "hello@example.com"
+  },
+  "site": {
+    "language": "en",
+    "pageTitle": "",
+    "description": ""
+  },
+  "navigation": [],
+  "resume": {
+    "enabled": true,
+    "label": "简历 / CV",
+    "defaultLanguage": "zh",
+    "zh": { "src": "./assets/resume/resume-zh-placeholder.pdf", "filename": "resume-zh-placeholder.pdf" },
+    "en": { "src": "./assets/resume/resume-en-placeholder.pdf", "filename": "resume-en-placeholder.pdf" }
+  },
+  "socials": [
+    {
+      "label": "GitHub",
+      "icon": "github",
+      "href": "https://github.com/your-username"
+    },
+    {
+      "label": "LinkedIn",
+      "icon": "linkedin",
+      "href": "https://linkedin.com/"
+    },
+    {
+      "label": "Email",
+      "icon": "email",
+      "href": "$email"
+    }
+  ],
+  "footer": {
+    "text": "",
+    "note": "Respect to Steve Jobs · made with GPT-6 Astra"
+  },
+  "projects": [
+    {
+      "title": "Sound of Humanity",
+      "color": "#e53935",
+      "desc": "A real-time audio-reactive visualization of human voices from around the world. WebGL fragment shaders pulse with the rhythm of submitted recordings.",
+      "link": "https://amory0709.github.io/datavis/soundofhumanity/",
+      "screen": {
+        "image": { "src": "./assets/projects/sound-of-humanity.png", "alt": "Sound of Humanity — live population simulation and US map", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "Electoral Map",
+      "color": "#fb8c00",
+      "desc": "Interactive U.S. electoral map with county-level drill-down, historical comparisons, and demographic overlays. Built with D3 + TopoJSON.",
+      "link": "https://amory0709.github.io/datavis/Electoral/",
+      "screen": {
+        "image": { "src": "./assets/projects/electoral-map.png", "alt": "Electoral Map — election timeline, vote charts and state tiles", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "BLUEbikes Availability",
+      "color": "#fdd835",
+      "desc": "Live bike-share station availability across Greater Boston. Auto-refreshing station map with predictive availability based on time-of-day patterns.",
+      "link": "https://amory0709.github.io/datavis/BLUEbikes/",
+      "screen": {
+        "image": { "src": "./assets/projects/bluebikes.png", "alt": "BLUEbikes — Boston bike-sharing station map", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "3D Asset Editor",
+      "color": "#66bb6a",
+      "desc": "Browser-based mesh editor with collision authoring, Gaussian Splatting support, and direct export to glTF. React Three Fiber + zustand.",
+      "link": "https://amory0709.github.io/3d-editor/",
+      "screen": {
+        "image": { "src": "./assets/projects/3d-asset-editor.png", "alt": "3D Asset Editor — editable cube and transform controls", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "MeshBVH X-Ray",
+      "color": "#507aba",
+      "desc": "Cross-section viewer for massive 3D meshes using BVH-accelerated raycasting. Slices through millions of triangles in real time.",
+      "link": "https://amory0709.github.io/three-mesh-bvh-xray/",
+      "screen": {
+        "image": { "src": "./assets/projects/mesh-bvh-xray.png", "alt": "MeshBVH X-Ray — LittlestTokyo model with BVH wireframe and slice controls", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "Procedural Sky Lab",
+      "color": "#785489",
+      "desc": "A WebGL playground for physically-based atmospheric scattering. Real-time control over Rayleigh / Mie coefficients with HDR capture.",
+      "link": "#",
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "Type Specimen",
+      "color": "#c56699",
+      "desc": "An interactive typography specimen book covering 12 contemporary typefaces, with variable-axis sliders and a live rendering canvas.",
+      "link": "#",
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "Vintage Web Archive",
+      "color": "#2a2a2a",
+      "desc": "A nostalgic walk through hand-crafted websites of the early web. Editorial layout, full-bleed photography, and slow-scroll storytelling.",
+      "link": "#",
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    }
+  ],
+  "screen": {
+    "titleSize": 40,
+    "descriptionSize": 17,
+    "buttonSize": 18,
+    "buttonText": "View project",
+    "image": {
+      "src": "",
+      "alt": "",
+      "fit": "contain"
+    }
+  }
+}

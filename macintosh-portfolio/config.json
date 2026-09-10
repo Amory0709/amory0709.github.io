@@ -1,0 +1,168 @@
+{
+  "profile": {
+    "name": "Mengyu Han",
+    "title": "Software Developer",
+    "initials": "My/H",
+    "email": "hamory@wustl.edu"
+  },
+  "site": {
+    "language": "en",
+    "pageTitle": "",
+    "description": ""
+  },
+  "navigation": [],
+  "resume": {
+    "enabled": true,
+    "label": "简历 / CV",
+    "defaultLanguage": "zh",
+    "zh": { "src": "./assets/resume/resume-zh-placeholder.pdf", "filename": "resume-zh-placeholder.pdf" },
+    "en": { "src": "./assets/resume/resume-en-placeholder.pdf", "filename": "resume-en-placeholder.pdf" }
+  },
+  "socials": [
+    {
+      "label": "GitHub",
+      "icon": "github",
+      "href": "https://github.com/Amory0709"
+    },
+    {
+      "label": "LinkedIn",
+      "icon": "linkedin",
+      "href": "https://linkedin.com/"
+    },
+    {
+      "label": "Email",
+      "icon": "email",
+      "href": "$email"
+    }
+  ],
+  "footer": {
+    "text": "© Amori Han· Respect to Steve Jobs · made with GPT-6 Astra",
+    "note": "Respect to Steve Jobs"
+  },
+  "projects": [
+    {
+      "title": "Sound of Humanity",
+      "color": "#e53935",
+      "desc": "A data visualization of births, deaths and population change across the United States, with adjustable simulation speed.",
+      "link": "https://amory0709.github.io/datavis/soundofhumanity/",
+      "screen": {
+        "image": { "src": "./assets/projects/sound-of-humanity.png", "alt": "Sound of Humanity — live population simulation and US map", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "Electoral Map",
+      "color": "#fb8c00",
+      "desc": "Explore historical U.S. presidential election results and compare party support across states from 1940 to 2016.",
+      "link": "https://amory0709.github.io/datavis/Electoral/",
+      "screen": {
+        "image": { "src": "./assets/projects/electoral-map.png", "alt": "Electoral Map — election timeline, vote charts and state tiles", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "BLUEbikes Availability",
+      "color": "#fdd835",
+      "desc": "Explore Boston bike-sharing stations on an interactive map and inspect bicycle availability at each location.",
+      "link": "https://amory0709.github.io/datavis/BLUEbikes/",
+      "screen": {
+        "image": { "src": "./assets/projects/bluebikes.png", "alt": "BLUEbikes — Boston bike-sharing station map", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "SLB 100 Family Day",
+      "color": "#66bb6a",
+      "desc": "An interactive 3D Family Day experience with single-player and two-player modes, bilingual guidance and camera-based gesture challenges.",
+      "link": "https://amory0709.github.io/SLB100FamilyDay/docs/",
+      "screen": {
+        "image": { "src": "./assets/projects/slb100-family-day.png", "alt": "SLB 100 Family Day — Move it Move it interactive 3D experience", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "MeshBVH X-Ray",
+      "color": "#507aba",
+      "desc": "Cross-section viewer for massive 3D meshes using BVH-accelerated raycasting. Slices through millions of triangles in real time.",
+      "link": "https://amory0709.github.io/three-mesh-bvh-xray/",
+      "screen": {
+        "image": { "src": "./assets/projects/mesh-bvh-xray.png", "alt": "MeshBVH X-Ray — LittlestTokyo model with BVH wireframe and slice controls", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "WhatIf Studio",
+      "color": "#785489",
+      "desc": "An SLB Family Day portrait experience. Explore the interactive gallery and face-swap interface; this frontend preview does not run the AI service.",
+      "link": "https://amory0709.github.io/what-if-studio/",
+      "screen": {
+        "image": { "src": "./assets/projects/what-if-studio.png", "alt": "WhatIf Studio — interactive portrait gallery, frontend preview", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "url": "/what-if-studio/",
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "High Performance Points",
+      "color": "#c56699",
+      "desc": "A browser-based volume renderer built with Angular and Three.js, designed to explore large datasets interactively.",
+      "link": "https://amory0709.github.io/high-performance-points/",
+      "screen": {
+        "image": { "src": "./assets/projects/high-performance-points.png", "alt": "High Performance Points — volumetric data visualization", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
+      "title": "2024 IDPwD",
+      "color": "#2a2a2a",
+      "desc": "An interactive experience created for the 2024 International Day of Persons with Disabilities.",
+      "link": "https://amory0709.github.io/2024IDPwD/",
+      "screen": {
+        "image": { "src": "./assets/projects/2024-idpwd.png", "alt": "2024 International Day of Persons with Disabilities — interactive experience", "fit": "cover" }
+      },
+      "embed": {
+        "enabled": true,
+        "width": 1300,
+        "height": 980
+      }
+    }
+  ],
+  "screen": {
+    "titleSize": 40,
+    "descriptionSize": 17,
+    "buttonSize": 18,
+    "buttonText": "View project",
+    "image": {
+      "src": "",
+      "alt": "",
+      "fit": "contain"
+    }
+  }
+}

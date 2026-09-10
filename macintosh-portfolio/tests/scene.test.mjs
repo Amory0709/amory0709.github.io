@@ -4,6 +4,7 @@ import test from 'node:test';
 import { register } from 'node:module';
 import * as THREE from '../vendor/three/three.module.js';
 import { CameraFocus } from '../camera-focus.mjs';
+import { boxCorners, cameraPose, sceneLayout } from '../scene-layout.mjs';
 import { mapLabelGeometry } from '../project-label.mjs';
 import { prepareFloppy, mapScreenGeometry, fitFloppyToDrive, pointerNDC } from '../scene-geometry.mjs';
 register(new URL('./import-map.mjs', import.meta.url));
@@ -156,6 +157,42 @@ test('inserted disk fits 94% of the real drive width independently of the foregr
   assert.ok(fit.scale > 0.36 && fit.scale < 0.39);
   assert.ok(fit.scale > 0.26 * 1.4, 'inserted desktop disk grows by more than 40%');
   assert.ok(fittedWidth < fit.width, 'keep clearance at both edges');
+});
+
+test('insertion destination matches the saved close composition with the real CRT and seated disk visible', () => {
+  const mac = model('macintosh_128k_computer_1984_trimmed');
+  mac.scale.setScalar(1.52 / new THREE.Box3().setFromObject(mac).getSize(new THREE.Vector3()).y);
+  const bounds = new THREE.Box3().setFromObject(mac), center = bounds.getCenter(new THREE.Vector3());
+  mac.position.sub(new THREE.Vector3(center.x, bounds.min.y, center.z));
+  mac.updateMatrixWorld(true);
+  let screen; mac.traverse(o => { if (o.isMesh && o.material.name === 'Screen') screen = o; });
+  const fit = fitFloppyToDrive(screen, floppy);
+  for (const [width,height] of [[1222,780],[366,640],[794,265]]) {
+    const h = Object.create(HeroView.prototype);
+    const mode = sceneLayout(width,height);
+    Object.assign(h, {macBounds:new THREE.Box3().setFromObject(mac),screenBounds:new THREE.Box3().setFromObject(screen),
+      floppyBounds:new THREE.Box3().setFromObject(floppy),insertScale:fit.scale,slot:fit.center,
+      floppies:Array.from({length:8},(_,index)=>({group:floppy.clone(true),index,state:'home'})),
+      layoutMode:mode,mobile:mode==='portrait',active:-1,baseCamera:new THREE.Vector3(0,1.1,4.65),
+      camera:new THREE.PerspectiveCamera(30,width/height,.1,50)});
+    h.arrangeFloppies(); h.fitSceneCamera();
+    const pose=cameraPose(h.cameraFrames,h.projectFocus);
+    h.camera.position.copy(pose.position);h.camera.lookAt(pose.target);h.camera.updateMatrixWorld();
+    const seated=h.floppyBounds.clone().applyMatrix4(new THREE.Matrix4().compose(h.seatedPosition(),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI/2,0,0)),new THREE.Vector3().setScalar(h.insertScale)));
+    for (const p of [h.screenBounds,seated].flatMap(boxCorners).map(p=>p.project(h.camera))) {
+      assert.ok(Math.abs(p.x)<=.95001&&Math.abs(p.y)<=.95001,'CRT and inserted disk stay in frame');
+    }
+    assert.ok(h.projectFocus>0,'insertion moves closer than the overview');
+    if(width===1222) {
+      assert.ok(Math.abs(h.cameraFrames.overview.position.z-4.191)<.01,'saved far boundary stays fixed');
+      const positions=screen.geometry.attributes.position;
+      const points=Array.from({length:positions.count},(_,i)=>new THREE.Vector3().fromBufferAttribute(positions,i).applyMatrix4(screen.matrixWorld).project(h.camera));
+      const fraction=(Math.max(...points.map(p=>p.x))-Math.min(...points.map(p=>p.x)))/2;
+      assert.ok(fraction>.45&&fraction<.47,`reference CRT width is about 46 percent of the canvas, got ${fraction}, focus ${h.projectFocus}`);
+      assert.ok(h.projectFocus>.75&&h.projectFocus<.80,'reference animation endpoint is preserved');
+    }
+  }
 });
 
 test('rapid switching and interrupted ejection leave exactly one inserted disk', () => {

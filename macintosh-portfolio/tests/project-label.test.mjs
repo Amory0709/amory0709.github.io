@@ -4,9 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createProjectLabelTexture, labelPalette, labelTitleLayout } from '../project-label.mjs';
 import { SRGBColorSpace } from '../vendor/three/three.module.js';
 
-const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const projects = [...html.matchAll(/title:\s*'([^']+)'\s*,\s*color:\s*'(#[0-9a-f]+)'/gi)]
-  .map(([, title, color]) => ({ title, color }));
+const { projects } = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
 
 function canvasStub() {
   const text = [], fills = [];

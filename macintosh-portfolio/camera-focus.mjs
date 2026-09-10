@@ -1,4 +1,4 @@
-export const ZOOM_LIMITS = Object.freeze({ min: -0.45, max: 1.2 });
+export const ZOOM_LIMITS = Object.freeze({ min: 0, max: 1.2 });
 
 /** Normalize mouse wheels and trackpads without letting one event jump the view. */
 export function wheelPixels(deltaY, deltaMode = 0, pageHeight = 800) {
@@ -32,6 +32,8 @@ export class CameraFocus {
   }
 
   transition(target, time, duration, kind, reducedMotion) {
+    if (!Number.isFinite(target)) return;
+    target = Math.max(ZOOM_LIMITS.min, Math.min(ZOOM_LIMITS.max, target));
     this.target = target;
     if (reducedMotion) {
       this.value = target;
