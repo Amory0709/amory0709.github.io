@@ -3,6 +3,7 @@ import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from './vendor/three/addons/environments/RoomEnvironment.js';
 import html2canvas from './vendor/html2canvas.esm.js';
 import { CameraFocus, wheelPixels } from './camera-focus.mjs?v=2';
+import { createProjectLabelTexture, mapLabelGeometry } from './project-label.mjs';
 import { prepareFloppy, mapScreenGeometry, fitFloppyToDrive, pointerNDC, ease } from './scene-geometry.mjs?v=5';
 
 export class HeroView {
@@ -128,6 +129,12 @@ export class HeroView {
       this.screen.castShadow = false;
       this.screen.receiveShadow = false;
       const template = prepareFloppy(floppyGLTF.scene);
+      const paper = template.getObjectByName('etiquette');
+      if (paper) {
+        const originalPaperGeometry = paper.geometry;
+        paper.geometry = mapLabelGeometry(originalPaperGeometry);
+        originalPaperGeometry.dispose();
+      }
       const driveFit = fitFloppyToDrive(this.screen, template);
       this.slot = driveFit.center;
       this.insertScale = driveFit.scale;
@@ -137,6 +144,12 @@ export class HeroView {
           if (!o.isMesh) return;
           o.material = o.material.clone();
           if (o.material.name === 'plastic') o.material.color.set(project.color);
+          if (o.material.name === 'etiquette') {
+            o.material.map = createProjectLabelTexture(project, index);
+            o.material.color.set('#ffffff');
+            o.material.roughness = 0.9;
+            o.material.metalness = 0;
+          }
           if (o.material.map) o.material.map.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
           o.userData.floppyIndex = index;
         });

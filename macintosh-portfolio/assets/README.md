@@ -19,6 +19,8 @@
 - 内容：紫色 KYANOS 横条、Pictures #5 手写体、紫色横线 ×7、INDEX、corner mark
 - 绑在 `etiquette` 材质的 `baseColorTexture` 上
 
+当前网页不会显示这张原始贴图：`project-label.mjs` 使用项目的 `title` 和 `color` 为每张软盘生成独立的 1024 × 768 CanvasTexture，并贴回原纸标签 mesh。标题自动换行，深色带使用白字，最亮的黄色带使用黑字。UV 按纸面 XY 范围重新映射，不改变标签位置或防闪烁间隙；原始 GLB 和其中的贴图仍然保留不动。
+
 **3 种更换方式**：
 
 1. **运行时换贴图**（最灵活）：`THREE.CanvasTexture` 程序化生成，运行时切换

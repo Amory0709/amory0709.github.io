@@ -4,6 +4,7 @@ import test from 'node:test';
 import { register } from 'node:module';
 import * as THREE from '../vendor/three/three.module.js';
 import { CameraFocus } from '../camera-focus.mjs';
+import { mapLabelGeometry } from '../project-label.mjs';
 import { prepareFloppy, mapScreenGeometry, fitFloppyToDrive, pointerNDC } from '../scene-geometry.mjs';
 register(new URL('./import-map.mjs', import.meta.url));
 const { HeroView } = await import('../hero.mjs');
@@ -80,6 +81,19 @@ test('bare-shell mode remains optional without changing body geometry', () => {
   assert.equal(bare.getObjectByName('etiquette'), undefined);
   assert.deepEqual(bare.getObjectByName('plastic').geometry.attributes.position.array,
     floppy.getObjectByName('plastic').geometry.attributes.position.array);
+});
+
+test('project-label UV projection is upright and preserves the real paper geometry and gap', () => {
+  const original = floppy.getObjectByName('etiquette').geometry;
+  const mapped = mapLabelGeometry(original), p = mapped.attributes.position, uv = mapped.attributes.uv;
+  assert.deepEqual(mapped.attributes.position.array, original.attributes.position.array);
+  assert.deepEqual(mapped.index.array, original.index.array);
+  assert.ok(mapped.boundingBox.min.z > floppy.getObjectByName('plastic').geometry.boundingBox.max.z);
+  assert.ok([...uv.array].every(v => v >= 0 && v <= 1));
+  for (let i = 0; i < p.count; i++) {
+    if (p.getX(i) === mapped.boundingBox.min.x) assert.equal(uv.getX(i), 0);
+    if (p.getY(i) === mapped.boundingBox.max.y) assert.equal(uv.getY(i), 1);
+  }
 });
 
 test('screen UV remap preserves every vertex on the supplied curved CRT', () => {

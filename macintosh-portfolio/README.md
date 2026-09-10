@@ -25,7 +25,7 @@ Do not open `index.html` directly with `file://`: browsers restrict loading GLB 
 
 - The screen is a texture on the supplied model's original curved CRT mesh, not a floating HTML overlay. It follows the camera and model and is naturally occluded by the casing.
 - Floppy meshes are baked into the plastic shell's coordinate frame. The shutter is at the top in the row, and the disk becomes horizontal with its shutter leading into the drive.
-- Imported GLB lights are not duplicated. The original paper labels are restored, with a measured positive surface gap and polygon offset to avoid coplanar depth conflict. Bare shells remain an explicit opt-out.
+- Imported GLB lights are not duplicated. The original paper meshes carry per-project labels generated from each project's title and disk color. Each disk owns a high-resolution texture with wrapped text and a paper border; UV remapping preserves geometry, the positive surface gap, and polygon offset. The supplied GLB is unchanged. Bare shells remain an explicit adapter opt-out.
 - Each disk owns its own interrupted/switching animation; Escape and responsive resize preserve correct return positions. Static disks do not continuously wiggle.
 - Waiting disks show their label face toward the viewer. Desktop/mobile rows and ejection share that orientation; insertion keeps the label face up and the shutter leading into the drive.
 - Inserted disk size is measured from the actual drive: 94% of its opening width, with 42% of the disk depth remaining visible. Scale interpolates during approach/ejection; foreground sizes are unchanged, and viewport changes cannot shrink an inserted disk.
@@ -37,11 +37,13 @@ Do not open `index.html` directly with `file://`: browsers restrict loading GLB 
 npm test
 ```
 
-Twenty-two geometry/animation tests cover real GLB transforms, restored labels and their clearance, waiting-disk facing, inserted width, scale interpolation, rapid switching, camera focus/reversal, reduced motion, responsive resize, project navigation, wheel normalization, zoom limits, manual takeover, and scroll handoff. Browser QA captures remain in the original local development workspace.
+Twenty-seven geometry/animation tests cover real GLB transforms, per-project label colors/titles, independent textures, title wrapping, UV orientation and clearance, waiting-disk facing, inserted width, scale interpolation, rapid switching, camera focus/reversal, reduced motion, responsive resize, project navigation, wheel normalization, zoom limits, manual takeover, and scroll handoff. Browser QA captures remain in the original local development workspace.
 
 ## Personalize
 
 Edit `index.html` to replace the template `Alex Morgan` details, social links, and the `projects` array. Each project needs a title, description, destination link, and display color. The project-card illustration currently reuses the selected concept artwork. Projects without a real destination hide their outbound CTA.
+
+Disk label names and accent colors automatically come from that same `projects` array. `project-label.mjs` draws the project title, disk number, matching color band, and ruled paper; no manual texture editing is needed. Labels are generated once on loading, not every animation frame.
 
 The geometry adapter is specific to the supplied assets and named material/mesh landmarks; replacing either GLB requires recalibrating those landmarks in `scene-geometry.mjs` and `hero.mjs`.
 
