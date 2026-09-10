@@ -15,6 +15,7 @@ export class HeroView {
     this.canvas = canvas;
     this.viewport = document.getElementById('sceneViewport');
     this.stage = document.getElementById('sceneStage');
+    this.diskScroll = document.getElementById('diskScroll');
     this.projects = projects;
     this.inner = document.getElementById('screenInner');
     this.status = document.getElementById('sceneStatus');
@@ -72,6 +73,13 @@ export class HeroView {
       this.setHovered(-1);
     });
     canvas.addEventListener('click', event => this.onClick(event));
+    this.diskScroll?.addEventListener('scroll', () => {
+      this.diskScrollTime = performance.now();
+      this.sceneDirty = true;
+    }, { passive: true });
+    this.diskScroll?.addEventListener('click', event => {
+      if (performance.now() - (this.diskScrollTime || -1000) > 140) this.onClick(event);
+    });
     document.querySelector('.page').addEventListener('wheel', event => this.onWheel(event), { passive: false });
     document.getElementById('zoomIn').addEventListener('click', () => this.cameraFocus.zoom(-160, performance.now(), this.reducedMotion));
     document.getElementById('zoomOut').addEventListener('click', () => this.cameraFocus.zoom(160, performance.now(), this.reducedMotion));
@@ -203,11 +211,18 @@ export class HeroView {
     this.panScene = this.panQuery?.matches ?? viewportWidth <= 760;
     const width = sceneStageWidth(viewportWidth, height, this.panScene);
     const nextMax = Math.max(0, width - viewportWidth);
-    const nextLeft = resizedScrollLeft(this.viewport?.scrollLeft || 0, this.panMax, nextMax);
+    const nextLeft = resizedScrollLeft(this.diskScroll?.scrollLeft || 0, this.panMax, nextMax);
     this.panMax = nextMax;
     this.viewportWidth = viewportWidth;
-    if (this.stage) this.stage.style.width = `${width}px`;
-    // Phones get a scrollable window onto the desktop row, not a new layout.
+    if (this.stage) {
+      this.stage.style.width = `${width}px`;
+      this.stage.style.marginLeft = `${-nextMax / 2}px`;
+    }
+    if (this.diskScroll) {
+      this.diskScroll.hidden = !this.panScene;
+      this.diskScroll.firstElementChild.style.width = `${width}px`;
+    }
+    // Keep the desktop camera centered; only the waiting disks can scroll.
     this.layoutMode = this.panScene ? 'row' : sceneLayout(width, height);
     this.mobile = !this.panScene && this.layoutMode === 'portrait';
     this.canvas.dataset.mobilePan = String(this.panScene);
@@ -223,7 +238,9 @@ export class HeroView {
     }
     if (this.macBounds) this.fitSceneCamera();
     this.updateCamera(performance.now());
-    if (this.viewport) this.viewport.scrollLeft = nextLeft;
+    if (this.viewport) this.viewport.scrollLeft = 0;
+    if (this.diskScroll) this.diskScroll.scrollLeft = nextLeft;
+    this.updateDiskScroll();
     // Resizing clears the drawing buffer; do not leave a blank canvas while a
     // mobile browser defers the next animation frame during viewport changes.
     if (this.mac) this.renderer.render(this.scene, this.camera);
@@ -274,8 +291,45 @@ export class HeroView {
   }
 
   centerScene() {
-    if (!this.panScene || !this.viewport) return;
-    this.viewport.scrollTo({ left: this.panMax / 2, behavior: this.reducedMotion ? 'instant' : 'smooth' });
+    if (!this.panScene || !this.diskScroll) return;
+    this.diskScroll.scrollTo({ left: this.panMax / 2, behavior: this.reducedMotion ? 'instant' : 'smooth' });
+  }
+
+  displayHome(f) {
+    return f.home.clone().add(new THREE.Vector3(this.panScene ? this.diskOffset || 0 : 0, 0, 0));
+  }
+
+  updateDiskScroll() {
+    if (!this.diskScroll) return;
+    if (!this.panScene || !this.floppyBounds || !this.floppies.length) {
+      this.diskScroll.hidden = !this.panScene;
+      this.diskScroll.style.height = '0px';
+      this.diskOffset = 0;
+      return;
+    }
+    const width = this.canvas.clientWidth, height = this.canvas.clientHeight;
+    const home = this.floppies[0].home;
+    const a = home.clone().project(this.camera);
+    const b = home.clone().add(new THREE.Vector3(1, 0, 0)).project(this.camera);
+    const pixelsPerUnit = (b.x - a.x) * width / 2;
+    this.diskOffset = (this.panMax / 2 - this.diskScroll.scrollLeft) / pixelsPerUnit;
+    this.canvas.dataset.diskOffset = this.diskOffset.toFixed(4);
+    // The transparent native scroller covers only the projected waiting row.
+    // It contains no duplicate disks; the real meshes stay in the main scene.
+    let top = height, bottom = 0;
+    for (const f of this.floppies) {
+      const matrix = new THREE.Matrix4().compose(f.home, f.homeQuaternion, new THREE.Vector3().setScalar(f.homeScale));
+      const box = this.floppyBounds.clone().applyMatrix4(matrix);
+      for (const y of [box.min.y, box.max.y + .05]) for (const z of [box.min.z, box.max.z]) {
+        const point = new THREE.Vector3(0, y, z).project(this.camera);
+        const pixelY = (1 - point.y) * height / 2;
+        top = Math.min(top, pixelY - 8); bottom = Math.max(bottom, pixelY + 8);
+      }
+    }
+    top = Math.max(0, top); bottom = Math.min(height, bottom);
+    this.diskScroll.hidden = false;
+    this.diskScroll.style.top = `${top}px`;
+    this.diskScroll.style.height = `${Math.max(0, bottom - top)}px`;
   }
 
   async paintScreen() {
@@ -303,7 +357,7 @@ export class HeroView {
 
   onPointerMove(event) {
     if (!this.mac) return;
-    if (this.panScene && event.pointerType === 'touch') return;
+    if (this.panScene) return;
     const ndc = pointerNDC(event, this.canvas.getBoundingClientRect());
     this.targetPointer.copy(ndc);
     const hit = this.hit(event);
@@ -315,7 +369,7 @@ export class HeroView {
     // Preserve browser zoom shortcuts and independently scrollable accessibility panels.
     if (!this.mac || !event.cancelable || event.ctrlKey || event.metaKey || event.shiftKey ||
       Math.abs(event.deltaX) >= Math.abs(event.deltaY) ||
-      event.target?.closest?.('.credit-block, .accessible-picker, .screen-portal')) return;
+      event.target?.closest?.('.credit-block, .accessible-picker, .screen-portal, .disk-scroll')) return;
     const delta = wheelPixels(event.deltaY, event.deltaMode, this.canvas.clientHeight);
     event.preventDefault();
     this.cameraFocus.zoom(delta, performance.now(), this.reducedMotion);
@@ -361,7 +415,7 @@ export class HeroView {
   }
 
   returnHome(f) {
-    this.move(f, 'ejecting', f.home.clone(), f.homeQuaternion.clone(), 550, () => {
+    this.move(f, 'ejecting', this.displayHome(f), f.homeQuaternion.clone(), 550, () => {
       f.state = 'home'; f.group.visible = true;
     }, 0.10, f.homeScale);
   }
@@ -377,7 +431,6 @@ export class HeroView {
     this.actions.hidden = true;
     this.paintScreen();
     const project = this.projects[index], f = this.floppies[index];
-    this.centerScene();
     this.status.textContent = `Loading ${project.title}…`;
     const horizontal = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
     const approach = this.slot.clone().add(new THREE.Vector3(0, 0, 0.24));
@@ -478,7 +531,7 @@ export class HeroView {
       target = this.cameraTarget.clone();
       target.y += focus * (this.mobile ? 0.20 : 0.18);
     }
-    if (!this.reducedMotion && this.active === -1) {
+    if (!this.panScene && !this.reducedMotion && this.active === -1) {
       this.camera.position.x += this.pointer.x * 0.065;
       this.camera.position.y += this.pointer.y * 0.035;
     }
@@ -506,9 +559,11 @@ export class HeroView {
     this.frame = requestAnimationFrame(next => this.tick(next));
     this.pointer.lerp(this.targetPointer, 0.06);
     this.updateCamera(time);
+    this.updateDiskScroll();
     let objectsMoving = false;
     for (const f of this.floppies) {
       if (f.motion) {
+        if (f.state === 'ejecting') f.motion.to.copy(this.displayHome(f));
         objectsMoving = true;
         const m = f.motion;
         const t = Math.min(1, (time - m.start) / m.duration);
@@ -519,7 +574,7 @@ export class HeroView {
         f.group.scale.setScalar(THREE.MathUtils.lerp(m.fromScale, m.toScale, progress));
         if (t === 1) { f.motion = null; m.done?.(); }
       } else if (f.state === 'home') {
-        const position = f.home.clone();
+        const position = this.displayHome(f);
         if (this.hovered === f.index) position.y += 0.045;
         objectsMoving ||= f.group.position.distanceToSquared(position) > 1e-8 || f.group.quaternion.angleTo(f.homeQuaternion) > .001;
         f.group.position.lerp(position, this.reducedMotion ? 1 : 0.12);

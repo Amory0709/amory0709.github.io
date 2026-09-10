@@ -4,7 +4,7 @@ Live homepage: https://amory0709.github.io/
 
 Interactive Macintosh portfolio based on [MyPortfolioTemplates](https://github.com/Amory0709/MyPortfolioTemplates). Click a floppy to explore a project, then open its interactive page inside the CRT. Scroll to zoom; the résumé icon supports configurable Chinese and English PDFs (currently placeholders).
 
-Phones preserve the desktop 3D composition: the computer and tilted floppy disks remain in one scene. Swipe the scene horizontally to reach disks outside the viewport, then tap to insert; selection automatically recenters the computer. There is no separate thumbnail tray or page-level overflow. Desktop layouts remain unchanged.
+Phones preserve the desktop 3D composition: the computer stays centered and stationary while only the waiting row of real, tilted floppy disks slides horizontally. Swipe the disks to reach a project, then tap to insert it from its current position. There is no separate thumbnail tray or page-level overflow. Desktop layouts remain unchanged.
 
 ## Update the homepage
 

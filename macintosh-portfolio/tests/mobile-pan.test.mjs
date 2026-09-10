@@ -15,7 +15,7 @@ test('phones retain the reference desktop scene proportions instead of wrapping 
   assert.equal(sceneStageWidth(760, 220, true), 760, 'never narrower than the visible viewport');
 });
 
-test('initial mobile view is centered and resize preserves the viewed section', () => {
+test('initial disk row is centered and resize preserves its scroll position', () => {
   assert.equal(resizedScrollLeft(0, undefined, 612), 306);
   assert.equal(resizedScrollLeft(0, 612, 400), 0);
   assert.equal(resizedScrollLeft(306, 612, 400), 200);
@@ -25,16 +25,16 @@ test('initial mobile view is centered and resize preserves the viewed section', 
   assert.equal(resizedScrollLeft(306, 612, 0), 0);
 });
 
-test('raycasting follows the actual scrolled canvas rather than the phone viewport', () => {
-  for (const scrollLeft of [0, 306, 612]) {
-    const rect = { left: 12 - scrollLeft, top: 55, width: 978, height: 624 };
+test('raycasting uses the fixed centered canvas regardless of disk scrolling', () => {
+  for (const diskScrollLeft of [0, 306, 612]) {
+    const rect = { left: 12 - 306, top: 55, width: 978, height: 624 };
     const point = pointerNDC({ clientX: 195, clientY: 367 }, rect);
-    assert.ok(Math.abs(point.x - ((183 + scrollLeft) / 978 * 2 - 1)) < 1e-10);
+    assert.equal(point.x, 0, `disk scroll ${diskScrollLeft} must not offset the camera viewport`);
     assert.equal(point.y, 0);
   }
 });
 
-test('root and subdirectory share a clipped 3D stage inside a native horizontal scroller', () => {
+test('root and subdirectory keep a fixed stage and a separate transparent disk-only hit region', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const root = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
   assert.equal(root.replace('  <base href="/macintosh-portfolio/" />\n', ''), html);
@@ -42,5 +42,8 @@ test('root and subdirectory share a clipped 3D stage inside a native horizontal 
   assert.ok(html.includes('overflow-x: auto; overflow-y: hidden; touch-action: pan-x'));
   assert.ok(html.includes('id="sceneViewport"'));
   assert.ok(html.includes('id="sceneStage"'));
+  assert.ok(html.includes('id="diskScroll"'));
+  assert.ok(html.includes('grid-row: 1; overflow: hidden;'));
+  assert.ok(!html.includes('Swipe the scene'));
   assert.ok(!html.includes('disk-tray') && !html.includes('disk-thumbnail'));
 });

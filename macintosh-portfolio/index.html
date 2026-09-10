@@ -571,14 +571,19 @@
     }
     .scene-stage { position: relative; width: 100%; height: 100%; overflow: hidden; }
     .mobile-scene-hint { display: none; }
+    .disk-scroll { display: none; }
     @media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
       .hero { grid-template-rows: minmax(0, 1fr) auto auto; }
       .hero-canvas-wrap {
-        grid-row: 1; overflow-x: auto; overflow-y: hidden; touch-action: pan-x;
+        grid-row: 1; overflow: hidden;
+      }
+      .disk-scroll:not([hidden]) {
+        display: block; position: absolute; left: 0; width: 100%; z-index: 3;
+        overflow-x: auto; overflow-y: hidden; touch-action: pan-x;
         overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: #b5b5b1 transparent;
         -webkit-overflow-scrolling: touch;
       }
-      .hero-3d { touch-action: pan-x; }
+      .disk-scroll > div { height: 1px; pointer-events: none; }
       .mobile-scene-hint { grid-row: 2; display: block; margin: 4px 0 0; text-align: center; font-size: 10px; color: #777; }
       .scene-controls { grid-row: 3; }
     }
@@ -653,8 +658,9 @@
 
         <div class="no-webgl-fallback">WebGL unavailable — please enable hardware acceleration</div>
         </div>
+        <div class="disk-scroll" id="diskScroll" aria-hidden="true" hidden><div></div></div>
       </div>
-      <p class="mobile-scene-hint">← Swipe the scene to explore disks →</p>
+      <p class="mobile-scene-hint">← Swipe the disks to explore →</p>
       <div class="scene-controls">
         <p id="sceneStatus" role="status" aria-live="polite">Loading the Macintosh…</p>
         <div class="project-actions-slot"><div id="projectActions" hidden>
@@ -712,7 +718,7 @@
   }
   </script>
 
-  <script type="module" src="./app.mjs?v=15"></script>
+  <script type="module" src="./app.mjs?v=16"></script>
   <noscript><p class="startup-error">Please enable JavaScript to load this 3D portfolio.</p></noscript>
 
 </body>

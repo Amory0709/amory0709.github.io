@@ -1,4 +1,4 @@
-// Keep the approved desktop scene proportions; phones show a scrollable crop.
+// Keep the approved desktop proportions and a centered crop; only disks scroll.
 export const MOBILE_PAN_QUERY = '(max-width: 760px), (max-height: 500px) and (pointer: coarse)';
 export const DESKTOP_SCENE_ASPECT = 1222 / 780;
 

@@ -158,6 +158,41 @@ test('mobile panning preserves every desktop disk position, tilt and scale', () 
   assert.ok(h.floppies.every(f => f.group.visible));
 });
 
+test('disk scrolling leaves the computer, camera and disk angles unchanged', () => {
+  const h = Object.create(HeroView.prototype);
+  Object.assign(h, {
+    layoutMode: 'row', panScene: true, panMax: 612, mobile: false,
+    baseCamera: new THREE.Vector3(0, 1.1, 4.65),
+    camera: new THREE.PerspectiveCamera(30, 978 / 624, .1, 50),
+    canvas: { clientWidth: 978, clientHeight: 624, dataset: {} },
+    diskScroll: { scrollLeft: 306, style: {} }, floppyBounds: new THREE.Box3().setFromObject(floppy),
+    mac: new THREE.Group(),
+    floppies: Array.from({ length: 8 }, (_, index) => ({ group: floppy.clone(true), index, state: 'home' }))
+  });
+  h.camera.position.copy(h.baseCamera); h.camera.lookAt(0, .55, .3); h.camera.updateMatrixWorld();
+  h.arrangeFloppies();
+  const camera = h.camera.matrixWorld.toArray(), mac = h.mac.matrixWorld.toArray();
+  const homes = h.floppies.map(f => f.home.toArray()), angles = h.floppies.map(f => f.homeQuaternion.toArray());
+  for (const left of [0, 306, 612]) {
+    h.diskScroll.scrollLeft = left; h.updateDiskScroll();
+    assert.deepEqual(h.camera.matrixWorld.toArray(), camera);
+    assert.deepEqual(h.mac.matrixWorld.toArray(), mac);
+    assert.deepEqual(h.floppies.map(f => f.homeQuaternion.toArray()), angles);
+    assert.deepEqual(h.floppies.map(f => f.home.toArray()), homes, 'camera fitting uses unshifted canonical homes');
+    const center = h.floppies[0].home.clone().project(h.camera);
+    const shifted = h.displayHome(h.floppies[0]).project(h.camera);
+    assert.ok(Math.abs((shifted.x - center.x) * 978 / 2 - (306 - left)) < 1e-7);
+    assert.equal(shifted.y, center.y);
+  }
+  const f = h.floppies[0];
+  f.group.position.copy(h.displayHome(f));
+  const start = f.group.position.clone();
+  h.move(f, 'approaching', new THREE.Vector3(0, .5, .3), new THREE.Quaternion(), 650, () => {});
+  assert.deepEqual(f.motion.from.toArray(), start.toArray(), 'insertion starts at the scrolled disk, without recentering');
+  h.panScene = false;
+  assert.deepEqual(h.displayHome(f).toArray(), f.home.toArray(), 'desktop has no row offset');
+});
+
 test('inserted disk fits 94% of the real drive width independently of the foreground scale', () => {
   const mac = model('macintosh_128k_computer_1984_trimmed');
   const height = new THREE.Box3().setFromObject(mac).getSize(new THREE.Vector3()).y;
