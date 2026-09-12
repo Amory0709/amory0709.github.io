@@ -51,8 +51,13 @@ export class ScreenPortal {
   }
 
   open(project) {
+    // Repeated activation of the current project must preserve its browsing
+    // context, gallery selection and route instead of starting the app again.
+    const key = JSON.stringify([project.embed.url, project.embed.width, project.embed.height]);
+    if (this.active && this.projectKey === key && this.iframe) return;
     this.close();
     this.active = true;
+    this.projectKey = key;
     this.width = project.embed.width; this.height = project.embed.height;
     this.element.style.width = `${this.width}px`;
     this.element.style.height = `${this.height}px`;
@@ -74,16 +79,30 @@ export class ScreenPortal {
     this.element.hidden = true;
     this.element.replaceChildren(); // Remove browsing context, audio and WebGL work.
     this.iframe = null;
+    this.projectKey = null;
+    this.lastTransform = null;
   }
 
   update(camera) {
     if (!this.active) return;
     this.screen.updateWorldMatrix(true, false);
     const points = this.corners.map(corner => corner.clone().applyMatrix4(this.screen.matrixWorld).project(camera));
-    if (points.some(point => point.z < -1 || point.z > 1)) { this.element.style.visibility = 'hidden'; return; }
+    if (points.some(point => point.z < -1 || point.z > 1)) {
+      if (this.element.style.visibility !== 'hidden') this.element.style.visibility = 'hidden';
+      return;
+    }
     const pixels = points.map(point => ({ x: (point.x + 1) * this.canvas.clientWidth / 2, y: (1 - point.y) * this.canvas.clientHeight / 2 }));
     const matrix = quadMatrix(pixels, this.width, this.height);
-    this.element.style.visibility = matrix ? 'visible' : 'hidden';
-    if (matrix) this.element.style.transform = `matrix(${interactiveMatrix(pixels,this.width,this.height).join(',')})`;
+    const visibility = matrix ? 'visible' : 'hidden';
+    if (this.element.style.visibility !== visibility) this.element.style.visibility = visibility;
+    if (matrix) {
+      const transform = `matrix(${interactiveMatrix(pixels,this.width,this.height).join(',')})`;
+      // An idle embedded app should not have its composited layer rewritten
+      // on every animation frame of the outer WebGL scene.
+      if (transform !== this.lastTransform) {
+        this.element.style.transform = transform;
+        this.lastTransform = transform;
+      }
+    }
   }
 }

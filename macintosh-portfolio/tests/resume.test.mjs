@@ -62,7 +62,7 @@ test('language switch changes preview and download together and revokes previous
   assert.equal(view.frame.title,'中文版简历 PDF');assert.equal(view.download.hidden,false);
   await view.select('en');
   assert.deepEqual(revoked,['blob:test-1']);assert.equal(view.download.download,'my-en.pdf');
-  assert.equal(view.frame.src,'./resume-preview.html?file=blob%3Atest-2&lang=en');assert.equal(doc.getElementById('resume-en')['aria-pressed'],'true');
+  assert.equal(view.frame.src,'./resume-preview.html?v=2&file=blob%3Atest-2&lang=en');assert.equal(doc.getElementById('resume-en')['aria-pressed'],'true');
   view.dialog.close();assert.deepEqual(revoked,['blob:test-1','blob:test-2']);
   assert.equal(view.frame.src,undefined);assert.equal(view.button.focused,true);
 });
@@ -79,7 +79,7 @@ test('late responses cannot replace a newly selected language or reopen a closed
   let resolve;
   const {view}=fixture(src=>src.includes('zh')?new Promise(r=>resolve=r):Promise.resolve(response()));
   const old=view.select('zh');await view.select('en');resolve(response());await old;
-  assert.equal(view.download.download,'my-en.pdf');assert.equal(view.frame.src,'./resume-preview.html?file=blob%3Atest-1&lang=en');
+  assert.equal(view.download.download,'my-en.pdf');assert.equal(view.frame.src,'./resume-preview.html?v=2&file=blob%3Atest-1&lang=en');
   const pending=view.select('zh');view.dialog.close();resolve(response());await pending;
   assert.equal(view.frame.src,undefined);assert.equal(view.download.hidden,true);
 });

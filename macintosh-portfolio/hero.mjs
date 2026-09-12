@@ -5,7 +5,7 @@ import html2canvas from './vendor/html2canvas.esm.js';
 import { CameraFocus, wheelPixels } from './camera-focus.mjs?v=4';
 import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose, projectViewFocus, anchorFarthestView, FAR_REFERENCE_FOCUS } from './scene-layout.mjs?v=8';
 import { MOBILE_PAN_QUERY, sceneStageWidth, resizedScrollLeft } from './mobile-pan.mjs';
-import { ScreenPortal } from './screen-portal.mjs?v=2';
+import { ScreenPortal } from './screen-portal.mjs?v=3';
 import { projectScreen } from './project-screen.mjs?v=5';
 import { createProjectLabelTexture, mapLabelGeometry } from './project-label.mjs';
 import { setSceneLoadState } from './scene-loading.mjs';
@@ -406,7 +406,7 @@ export class HeroView {
     this.desktopResume?.clear();
     const index = hit?.object.userData.floppyIndex;
     if (index !== undefined) { this.insert(index); return; }
-    if (hit?.object === this.screen && this.active !== -1 && hit.uv) {
+    if (hit?.object === this.screen && this.active !== -1 && !this.portal?.active && hit.uv) {
       const root = this.inner.getBoundingClientRect();
       const x = hit.uv.x * root.width, y = (1 - hit.uv.y) * root.height;
       for (const link of this.inner.querySelectorAll('.project-card a, .project-card button')) {
@@ -506,7 +506,7 @@ export class HeroView {
 
   openProject() {
     const project = this.projects[this.active];
-    if (!project) return;
+    if (!project || this.portal?.active) return;
     if (!this.canEmbed()) {
       if (project.link !== '#') window.open(project.link, '_blank', 'noopener,noreferrer');
       return;

@@ -64,7 +64,7 @@ export class ResumeView {
       const blob = await fetchResumePDF(file.src, this.controller.signal, this.fetcher);
       if (revision !== this.revision || !this.dialog.open) return;
       this.blobURL = this.urls.createObjectURL(blob);
-      this.frame.src = `./resume-preview.html?file=${encodeURIComponent(this.blobURL)}&lang=${language}`; this.frame.hidden = false;
+      this.frame.src = `./resume-preview.html?v=2&file=${encodeURIComponent(this.blobURL)}&lang=${language}`; this.frame.hidden = false;
       this.download.href = this.blobURL; this.download.download = file.filename; this.download.hidden = false;
       this.status.textContent = labels.ready;
     } catch (error) {

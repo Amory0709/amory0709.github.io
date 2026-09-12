@@ -89,10 +89,32 @@ test('switching or closing destroys the previous iframe and ignores its late loa
     portal.open(project);const old=portal.iframe;
     assert.ok(old.sandbox.includes('allow-scripts'));
     assert.ok(!old.sandbox.includes('allow-top-navigation'));
-    portal.open(project);assert.equal(children.length,1);assert.notEqual(old,portal.iframe);
+    portal.open({...project,embed:{...project.embed,url:'https://example.com/another/'}});assert.equal(children.length,1);assert.notEqual(old,portal.iframe);
     old.load();assert.equal(loads,0);
     portal.iframe.load();assert.equal(loads,1);
     portal.close();assert.equal(children.length,0);assert.equal(portal.iframe,null);
+  } finally { globalThis.document=previousDocument; }
+});
+
+test('repeated project activation and idle scene frames preserve the loaded iframe', () => {
+  const previousDocument=globalThis.document; let replacements=0, transforms=0;
+  globalThis.document={createElement:()=>({setAttribute(k,v){this[k]=v;},addEventListener(k,fn){this[k]=fn;}})};
+  try {
+    const style={set transform(value){transforms++;this.saved=value;},get transform(){return this.saved;}};
+    const element={style,replaceChildren(){replacements++;}};
+    const screen=new THREE.Mesh(new THREE.BoxGeometry(1,.75,.04));
+    const portal=new ScreenPortal(screen,{clientWidth:1200,clientHeight:700},element);
+    const project={title:'WhatIf Studio',embed:{url:'/what-if-studio/',width:1300,height:980}};
+    portal.open(project); const iframe=portal.iframe, initialReplacements=replacements;
+    iframe.gallerySelection='second portrait';
+    for(let i=0;i<5;i++) portal.open(structuredClone(project));
+    assert.equal(portal.iframe,iframe); assert.equal(replacements,initialReplacements);
+    assert.equal(portal.iframe.gallerySelection,'second portrait');
+    const camera=new THREE.PerspectiveCamera(30,1200/700,.1,50);
+    camera.position.z=3;camera.updateMatrixWorld();
+    for(let i=0;i<10;i++) portal.update(camera);
+    assert.equal(transforms,1); assert.equal(replacements,initialReplacements);
+    portal.close();portal.open(project);assert.notEqual(portal.iframe,iframe);
   } finally { globalThis.document=previousDocument; }
 });
 
