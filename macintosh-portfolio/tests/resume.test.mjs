@@ -35,7 +35,11 @@ test('resume configuration keeps bilingual file paths, download names and option
 });
 
 test('only real PDF bytes are previewed, with HTTP failures and non-PDF files rejected',async()=>{
-  assert.equal((await fetchResumePDF('./test.pdf',undefined,async()=>response())).type,'application/pdf');
+  assert.equal((await fetchResumePDF('./test.pdf',undefined,async(src,options)=>{
+    assert.equal(src,'./test.pdf');
+    assert.equal(options.cache,'no-store','published resume updates must bypass old PDF responses');
+    return response();
+  })).type,'application/pdf');
   await assert.rejects(fetchResumePDF('missing',undefined,async()=>({ok:false,status:404})),/404/);
   await assert.rejects(fetchResumePDF('html',undefined,async()=>({ok:true,blob:async()=>new Blob(['<html>Error</html>'])})),/must be a PDF/);
 });

@@ -4,7 +4,7 @@ const copy = {
 };
 
 export async function fetchResumePDF(src, signal, fetcher = fetch) {
-  const response = await fetcher(src, { signal });
+  const response = await fetcher(src, { signal, cache: 'no-store' });
   if (!response.ok) throw new Error(`Resume HTTP ${response.status}`);
   const blob = await response.blob();
   if (blob.size > 20 * 1024 * 1024) throw new Error('Resume exceeds 20 MB');

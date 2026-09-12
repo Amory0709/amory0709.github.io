@@ -15,8 +15,8 @@
     "enabled": true,
     "label": "简历 / CV",
     "defaultLanguage": "zh",
-    "zh": { "src": "./assets/resume/Mengyu_Han_Resume_ZH.pdf", "filename": "Mengyu_Han_Resume_ZH.pdf" },
-    "en": { "src": "./assets/resume/Mengyu_Han_Resume_EN.pdf", "filename": "Mengyu_Han_Resume_EN.pdf" }
+    "zh": { "src": "./assets/resume/Mengyu_Han_Resume_ZH-db3f78fdedb4.pdf", "filename": "Mengyu_Han_Resume_ZH.pdf" },
+    "en": { "src": "./assets/resume/Mengyu_Han_Resume_EN-4b2df6000fb4.pdf", "filename": "Mengyu_Han_Resume_EN.pdf" }
   },
   "socials": [
     {
