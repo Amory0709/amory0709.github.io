@@ -112,15 +112,15 @@ python3 -m http.server 4173 --bind 127.0.0.1
 
 点击右上角文件图标，或双击 Macintosh 桌面的 `Resume.pdf` 文件，打开同一个简历弹窗。桌面文件单击高亮选中，双击 / 手机双击或选中后按 Enter 打开；不复制简历数据。支持中文 / English 切换、逐页 PDF 预览、下载当前语言的原始 PDF、独立打开。
 
-目前附带两份**明确标注为占位、非真实简历**的 PDF，可直接体验。准备正式简历后，在 `assets/resume/` 放入两个 PDF 并更新：
+现已接入韩梦宇的正式中英文简历。更新时替换 `assets/resume/` 下对应 PDF；两种语言的预览和下载统一使用以下配置：
 
 ```json
 "resume": {
   "enabled": true,
   "label": "简历 / CV",
   "defaultLanguage": "zh",
-  "zh": { "src": "./assets/resume/resume-zh.pdf", "filename": "My-Resume-ZH.pdf" },
-  "en": { "src": "./assets/resume/resume-en.pdf", "filename": "My-Resume-EN.pdf" }
+  "zh": { "src": "./assets/resume/Mengyu_Han_Resume_ZH.pdf", "filename": "Mengyu_Han_Resume_ZH.pdf" },
+  "en": { "src": "./assets/resume/Mengyu_Han_Resume_EN.pdf", "filename": "Mengyu_Han_Resume_EN.pdf" }
 }
 ```
 

@@ -40,9 +40,10 @@ test('only real PDF bytes are previewed, with HTTP failures and non-PDF files re
   await assert.rejects(fetchResumePDF('html',undefined,async()=>({ok:true,blob:async()=>new Blob(['<html>Error</html>'])})),/must be a PDF/);
 });
 
-test('both bundled placeholder files are actual downloadable PDFs',async()=>{
+test('both configured resume files are actual downloadable PDFs',async()=>{
+  const resume=normalizeConfig(source()).resume;
   for(const language of ['zh','en']) {
-    const file={src:`./assets/resume/resume-${language}-placeholder.pdf`,filename:`resume-${language}-placeholder.pdf`};
+    const file=resume[language];
     const bytes=readFileSync(new URL(`../${file.src}`,import.meta.url));
     const blob=await fetchResumePDF(file.src,undefined,async()=>({ok:true,blob:async()=>new Blob([bytes])}));
     assert.equal(blob.size,bytes.length);
