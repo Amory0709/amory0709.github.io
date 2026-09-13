@@ -67,7 +67,7 @@
     },
     {
       "title": "SLB 100 Family Day",
-      "color": "#66bb6a",
+      "color": "#ffffff",
       "desc": "An interactive 3D Family Day experience with single-player and two-player modes, bilingual guidance and camera-based gesture challenges.",
       "link": "https://amory0709.github.io/SLB100FamilyDay/docs/",
       "screen": {
@@ -103,7 +103,7 @@
     },
     {
       "title": "2024 IDPwD",
-      "color": "#2a2a2a",
+      "color": "#8e44ad",
       "desc": "An interactive experience created for the 2024 International Day of Persons with Disabilities.",
       "link": "https://amory0709.github.io/2024IDPwD/",
       "screen": {
