@@ -5,45 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Sound of Life</title>
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
-    <script src="https://d3js.org/d3.v5.min.js"></script>
-    <script src="https://d3js.org/topojson.v2.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+    <meta name="description" content="A historical visual and musical simulation of U.S. births and deaths, preserving a 2020 setting. Not live population data; sources and limitations are in about.">
+    <script src="vendor/d3.min.js" defer></script>
+    <script src="vendor/topojson-client.min.js" defer></script>
+    <script src="vendor/matter.min.js" defer></script>
+    <script src="js/physics.js" defer></script>
+    <script src="js/simulation.js" defer></script>
+    <script src="js/main.js" defer></script>
 </head>
 <body>
 
-    <div id="container">
-        <!-- P5 Canvas Container -->
-        <div id="p5-container"></div>
+    <main id="container" aria-label="The sound of life simulation">
+        <canvas id="particles" aria-hidden="true"></canvas>
+        <p id="loading-status" role="status">Loading the map…</p>
 
         <!-- Header / Left Info -->
         <div id="header">
             <h1>the sound of life</h1>
             <div class="population-counter">
-                <h2>current population:</h2>
+                <h2>simulated population:</h2>
                 <span id="current-population">328731186</span>
             </div>
 
             <div class="controls">
-                <label>Simulation Speed</label>
+                <label for="speed-slider">Simulation Speed</label>
                 <div class="speed-control">
-                    <span id="speed-label">100%</span>
-                    <input type="range" id="speed-slider" min="10" max="500" value="100">
+                    <output id="speed-label" for="speed-slider"><span id="speed-value">100</span> <span class="percent">%</span></output>
+                    <input type="range" id="speed-slider" min="10" max="500" value="100" step="10" aria-valuetext="100 percent">
                 </div>
             </div>
 
             <div class="time-display">
                 <h3>Elapsed time</h3>
                 <span id="elapsed-time">00:00:00</span>
-                <div id="current-date">Wed Apr 08 2020<br>00:00:00 GMT-0500</div>
+                <div id="current-date" aria-label="Simulation start: April 8, 2020, midnight Central Daylight Time">Wed Apr 08 2020<br>00:00:00 GMT-0500<br>(Central Daylight Time)</div>
             </div>
         </div>
 
         <!-- Right Info -->
         <div id="right-panel">
             <div class="buttons">
-                <button id="btn-about">about</button>
-                <button id="btn-table">table</button>
+                <button id="btn-about" type="button" aria-haspopup="dialog" aria-controls="about-dialog" aria-expanded="false">about</button>
+                <button id="btn-table" type="button" aria-haspopup="dialog" aria-controls="table-dialog" aria-expanded="false">table</button>
             </div>
             
             <div class="stats-box">
@@ -62,9 +65,58 @@
         </div>
 
         <!-- Visualization Map -->
-        <div id="viz"></div>
-    </div>
+        <div id="viz" role="img" aria-label="Map of the United States. Yellow dots represent simulated births and red dots represent simulated deaths. Event details are available in the table."></div>
+        <p id="data-context">Historical simulation · not live data<br>2020 setting · sources in about</p>
+    </main>
 
-    <script src="js/main.js"></script>
+    <dialog id="about-dialog" aria-labelledby="about-title" aria-describedby="about-intro">
+        <div class="dialog-header">
+            <h2 id="about-title">about the sound of life</h2>
+            <button type="button" class="close-dialog" aria-label="Close about">close</button>
+        </div>
+        <p id="about-intro">A moment in the life of a country, told through the rhythm of births and deaths. This recreation preserves historical settings; it does not describe today’s U.S. population.</p>
+        <p>Each <span class="birth">yellow dot</span> marks a simulated birth; each <span class="death">red dot</span> marks a simulated death. A pulse appears at its location, then the dot falls and joins the lives accumulating below the map.</p>
+        <p>At 100% speed, the simulation creates one birth every 8 seconds and one death every 11 seconds. Move the slider to change how quickly simulated time passes.</p>
+        <section class="data-sources" aria-labelledby="data-sources-title">
+            <h3 id="data-sources-title">data and sources</h3>
+            <ul>
+                <li><strong>Birth and death intervals:</strong> the 8-second birth interval and 11-second death interval match the U.S. Census Bureau’s <a href="https://www.census.gov/library/stories/2019/12/happy-new-year-330-million-plus-people-in-united-states.html" target="_blank" rel="noopener noreferrer">projections for January 2020</a>, published December 31, 2019. These are historical national averages, not current rates or observed individual events.</li>
+                <li><strong>Starting population and date:</strong> 328,731,186 and April 8, 2020 are retained project settings; see the <a href="../../img/SoundOfHumanity.png" target="_blank" rel="noopener noreferrer">preserved project image</a>. The original statistical source and reference date for that exact population have not been verified. April 8 is the simulation timestamp, not a confirmed population estimate date.</li>
+                <li><strong>Map geography:</strong> state outlines use <a href="https://github.com/topojson/us-atlas/tree/v1.0.2" target="_blank" rel="noopener noreferrer">US Atlas 1.0.2</a> (2015 Census boundaries); county names and locations use <a href="https://github.com/topojson/us-atlas/tree/v3.0.1" target="_blank" rel="noopener noreferrer">US Atlas 3.0.1</a> (2017 Census boundaries).</li>
+            </ul>
+            <p>The counter adds simulated births and subtracts simulated deaths from the starting population; it excludes migration. Counties are selected uniformly from the map’s available county locations, without population weighting. Dots and <strong>table</strong> rows are generated illustrations, not historical or live records.</p>
+            <p>For current official population projections, visit the <a href="https://www.census.gov/popclock/" target="_blank" rel="noopener noreferrer">U.S. Census Bureau Population Clock</a>.</p>
+        </section>
+        <label class="sound-control"><input type="checkbox" id="sound-toggle"> Play sounds for births and deaths</label>
+        <p class="dialog-note">Simulation paused while this window is open. Close it or press Escape to continue.</p>
+    </dialog>
+
+    <dialog id="table-dialog" aria-labelledby="table-title" aria-describedby="table-summary">
+        <div class="dialog-header">
+            <h2 id="table-title">since simulation start</h2>
+            <button type="button" class="close-dialog" aria-label="Close table">close</button>
+        </div>
+        <p id="table-summary"></p>
+        <p class="dialog-note">Generated events using historical settings; not observed birth or death records. Data sources and dates are in <strong>about</strong>.</p>
+        <div class="table-toolbar">
+            <label for="event-filter">Show
+                <select id="event-filter">
+                    <option value="all">All events</option>
+                    <option value="birth">Births</option>
+                    <option value="death">Deaths</option>
+                </select>
+            </label>
+            <span class="dialog-note">Simulation paused</span>
+        </div>
+        <div class="table-scroll" tabindex="0" role="region" aria-label="Simulation event records">
+            <table>
+                <caption class="visually-hidden">Simulated birth and death events, newest first</caption>
+                <thead><tr><th scope="col">Elapsed time</th><th scope="col">Event</th><th scope="col">Location</th><th scope="col">Population after event</th></tr></thead>
+                <tbody id="event-rows"></tbody>
+            </table>
+            <p id="table-empty">No matching events yet. Close this window to let the simulation continue.</p>
+        </div>
+        <p id="table-count" class="dialog-note" role="status"></p>
+    </dialog>
 </body>
 </html>

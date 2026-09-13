@@ -1,214 +1,135 @@
-:root {
-    --bg-color: #103E5B;
-    --text-white: #ffffff;
-    --text-yellow: #FDD835;
-    --text-red: #E53935;
-    --map-fill: #D3D3D3;
-    --map-stroke: #999;
+@font-face {
+    font-family: "Ramaraja";
+    src: url("../fonts/ramaraja.ttf") format("truetype");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
 }
 
+:root {
+    --bg-color: #134e71;
+    --text-white: #fff;
+    --text-yellow: #ffce6d;
+    --text-red: #ff4b42;
+    --map-fill: #d3d3d3;
+    --map-stroke: #a8bac5;
+    --composition-height: min(max(450px, 100dvh), 51.180556vw);
+    color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
 body {
     margin: 0;
-    padding: 0;
-    font-family: 'Roboto', sans-serif;
-    background-color: var(--bg-color);
+    background: var(--bg-color);
     color: var(--text-white);
-    overflow: hidden;
-    height: 100vh;
-    width: 100vw;
+    font-family: "Ramaraja", Georgia, serif;
+    font-weight: 400;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+h1, h2, h3, p { margin: 0; font-weight: 400; }
+#container { position: relative; width: 100%; height: 100vh; height: 100dvh; min-height: 450px; }
+#viz, #particles, #event-labels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#viz svg, #event-labels { display: block; }
+#viz { z-index: 1; }
+#particles { z-index: 2; }
+#event-labels { z-index: 3; }
+#loading-status { position: absolute; top: 45%; left: 35%; z-index: 3; font-size: 18px; }
+#header { position: absolute; top: calc(var(--composition-height) * 0.061); left: 4.5%; z-index: 4; width: 23%; }
+h1 { font-size: clamp(28px, 2.7778vw, 60px); font-weight: 700; line-height: 1; letter-spacing: 0; white-space: nowrap; margin-bottom: 4px; }
+.population-counter h2, #current-population { font-size: clamp(22px, 2.0833vw, 45px); font-weight: 700; line-height: 1; }
+#current-population { display: block; letter-spacing: 0.035vw; }
+#data-context { position: absolute; left: 4.5%; bottom: 12px; z-index: 4; font-size: clamp(16px, 1.25vw, 24px); line-height: 1.1; }
+.controls { position: fixed; left: 5.8%; top: calc(var(--composition-height) * 0.339); width: 10.4%; text-align: center; font-size: clamp(18px, 1.6667vw, 36px); font-weight: 700; line-height: 1; }
+.controls > label { display: block; white-space: nowrap; }
+#speed-label { display: block; margin-top: 19px; font-size: clamp(25px, 2.2222vw, 48px); }
+#speed-label .percent { font-size: 0.75em; }
+#speed-value { letter-spacing: 0.02em; }
+#speed-slider { display: block; width: 88.5%; height: 44px; margin: -3px auto 0; padding: 0; background: transparent; appearance: none; cursor: pointer; }
+#speed-slider::-webkit-slider-runnable-track { height: 9px; border-radius: 20px; background: white; }
+#speed-slider::-webkit-slider-thumb { appearance: none; width: 23px; height: 23px; border-radius: 50%; margin-top: -7px; border: 1px solid #bbb; background: white; }
+#speed-slider::-moz-range-track { height: 9px; border-radius: 20px; background: white; }
+#speed-slider::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; border: 1px solid #bbb; background: white; }
+.time-display { position: fixed; top: calc(var(--composition-height) * 0.637); left: 5%; font-weight: 700; }
+.time-display h3, #elapsed-time { font-size: clamp(18px, 1.6667vw, 36px); font-weight: 700; line-height: 1; }
+#elapsed-time { display: block; margin-top: 18px; }
+#current-date { margin-top: 19px; font-size: clamp(12px, 1.0417vw, 23px); line-height: 1; }
+#right-panel { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+/* Reference at 1440 × 737: (1166, 50.5), 101/94 × 46, with an 18 px gap. */
+.buttons { --button-unit: clamp(0.8px, 0.0694444444vw, 1.5px); position: absolute; top: calc(var(--composition-height) * 0.0685210312); left: 80.9722222222%; display: flex; flex-direction: column; align-items: start; gap: calc(18 * var(--button-unit)); pointer-events: auto; }
+.buttons button { width: calc(101 * var(--button-unit)); height: calc(46 * var(--button-unit)); padding: calc(10 * var(--button-unit)) 0 calc(4 * var(--button-unit)); color: white; border: 2px solid white; border-radius: 0; background: transparent; font-size: calc(27 * var(--button-unit)); font-weight: 400; line-height: 1; letter-spacing: calc(1.3 * var(--button-unit)); white-space: nowrap; }
+#btn-table { width: calc(94 * var(--button-unit)); }
+.buttons button:hover, .close-dialog:hover { background: white; color: var(--bg-color); }
+.stats-box { position: absolute; top: calc(var(--composition-height) * 0.311); left: 80.3%; width: 19%; text-align: left; font-weight: 700; }
+.since-label { font-size: clamp(17px, 1.6667vw, 36px); line-height: 1; margin-bottom: 20px; white-space: nowrap; }
+.stat-group { margin-bottom: 19px; }
+.stat-group h3 { font-size: clamp(24px, 2.2222vw, 48px); font-weight: 700; line-height: 0.92; }
+.stat-group p { font-size: clamp(16px, 1.3889vw, 30px); font-weight: 700; line-height: 1; white-space: nowrap; }
+.stat-group.birth { color: var(--text-yellow); }
+.stat-group.death { color: var(--text-red); }
+.states { fill: var(--map-fill); stroke: var(--map-stroke); stroke-width: 0.4px; }
+.label-text, .sub-label { fill: white; font-family: "Ramaraja", Georgia, serif; font-size: clamp(14px, 1.25vw, 27px); }
+.label-connector { stroke: rgb(255 255 255 / 65%); stroke-width: 1; }
 
-#container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+dialog { box-sizing: border-box; width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); padding: 28px; border: 2px solid white; background: var(--bg-color); color: white; font: inherit; font-size: 21px; line-height: 1.2; }
+dialog::backdrop { background: rgb(0 18 33 / 75%); }
+dialog p { margin: 16px 0; }
+.dialog-header { display: flex; align-items: start; justify-content: space-between; gap: 24px; }
+.dialog-header h2 { margin: 0; font-size: 34px; }
+.close-dialog { background: transparent; border: 1px solid white; color: inherit; font: inherit; padding: 6px 14px; cursor: pointer; min-height: 44px; }
+dialog a { color: white; }
+.birth { color: #ffce6d; }
+.death { color: #ff4b42; }
+.dialog-note { font-size: 18px; }
+.data-sources { margin: 24px 0; padding-top: 18px; border-top: 1px solid rgb(255 255 255 / 30%); }
+.data-sources h3 { font-size: 28px; }
+.data-sources ul { margin: 12px 0; padding-left: 22px; }
+.data-sources li + li { margin-top: 14px; }
+.sound-control { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.sound-control input { width: 20px; height: 20px; }
+#table-dialog { width: min(960px, calc(100vw - 32px)); }
+.table-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 16px 0; }
+.table-toolbar select { margin-left: 8px; font: inherit; color: inherit; background: var(--bg-color); padding: 8px; border: 1px solid white; }
+.table-scroll { max-height: 50dvh; overflow: auto; }
+table { width: 100%; text-align: left; border-collapse: collapse; font-size: 21px; }
+th, td { border-bottom: 1px solid rgb(255 255 255 / 20%); padding: 10px 12px; }
+th { background: var(--bg-color); position: sticky; top: 0; font-weight: 400; }
+td:first-child, td:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+#table-empty { padding: 12px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+:focus-visible { outline: 3px solid #ffce6d; outline-offset: 5px; }
+
+/* The source artwork is a wide composition; compact screens keep controls readable. */
+@media (max-width: 759px) {
+    body { overflow-y: auto; }
+    #container { min-height: 740px; }
+    #header { top: 25px; left: 20px; width: calc(100% - 40px); }
+    h1 { font-size: 38px; }
+    .population-counter h2, #current-population { font-size: 26px; }
+    #data-context { left: 20px; font-size: 16px; }
+    .buttons { --button-unit: 1px; top: 144px; left: 20px; flex-direction: row; gap: 12px; }
+    .buttons button, #btn-table { width: auto; height: auto; min-height: 46px; font-size: 24px; padding: 11px 12px 5px; }
+    .controls { position: absolute; top: 106px; left: 52%; width: 44%; font-size: 21px; }
+    #speed-label { font-size: 28px; margin-top: 9px; }
+    #speed-slider { width: 125px; max-width: 90%; }
+    .time-display { position: absolute; top: 195px; left: 0; }
+    .time-display h3, #elapsed-time { font-size: 22px; }
+    #elapsed-time { margin-top: 5px; }
+    #current-date { margin-top: 8px; font-size: 15px; }
+    .stats-box { top: 240px; left: 52%; width: 47%; }
+    .since-label { font-size: 18px; margin-bottom: 12px; }
+    .stat-group { margin-bottom: 9px; }
+    .stat-group h3 { font-size: 27px; }
+    .stat-group p { font-size: 16px; }
+    .label-text, .sub-label { font-size: 16px; }
+    dialog { padding: 20px; }
+    .dialog-header { gap: 12px; }
+    .dialog-header h2 { font-size: 30px; }
+    .table-toolbar { align-items: start; }
+    table { min-width: 550px; font-size: 20px; }
 }
-
-#p5-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 5; /* Above map, below controls */
-    pointer-events: none; /* Let clicks pass through to map/controls if needed, but p5 usually needs interaction? Assuming passive viz */
-}
-
-/* Header & Left Controls */
-#header {
-    position: absolute;
-    top: 40px;
-    left: 40px;
-    z-index: 10;
-    width: 250px;
-    pointer-events: auto;
-}
-
-h1 {
-    font-family: 'Playfair Display', serif;
-    font-size: 2.5rem;
-    margin: 0 0 20px 0;
-}
-
-.population-counter h2 {
-    font-size: 1.2rem;
-    margin: 0;
-    font-weight: 700;
-}
-
-#current-population {
-    font-size: 2rem;
-    font-weight: 700;
-    display: block;
-    margin-top: 5px;
-}
-
-.controls {
-    margin-top: 50px;
-}
-
-.speed-control {
-    margin-top: 10px;
-}
-
-#speed-slider {
-    width: 100%;
-}
-
-.time-display {
-    margin-top: 60px;
-}
-
-.time-display h3 {
-    font-size: 1rem;
-    margin-bottom: 5px;
-}
-
-#elapsed-time {
-    font-size: 1.5rem;
-    font-weight: 700;
-    display: block;
-    margin-bottom: 10px;
-}
-
-#current-date {
-    font-size: 0.8rem;
-    opacity: 0.8;
-    line-height: 1.4;
-}
-
-/* Right Panel */
-#right-panel {
-    position: absolute;
-    top: 40px;
-    right: 40px;
-    z-index: 10;
-    text-align: right;
-    width: 300px;
-    pointer-events: auto;
-}
-
-.buttons {
-    margin-bottom: 50px;
-}
-
-.buttons button {
-    background: transparent;
-    border: 2px solid white;
-    color: white;
-    padding: 8px 20px;
-    font-size: 1.2rem;
-    font-family: 'Playfair Display', serif;
-    cursor: pointer;
-    margin-left: 10px;
-    transition: all 0.3s;
-}
-
-.buttons button:hover {
-    background: white;
-    color: var(--bg-color);
-}
-
-.stats-box {
-    text-align: right;
-}
-
-.since-label {
-    font-size: 0.9rem;
-    margin-bottom: 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.3);
-    display: inline-block;
-    padding-bottom: 5px;
-}
-
-.stat-group {
-    margin-bottom: 30px;
-}
-
-.stat-group h3 {
-    font-family: 'Playfair Display', serif;
-    font-size: 2rem;
-    margin: 0;
-}
-
-.stat-group.birth h3 {
-    color: var(--text-yellow);
-}
-
-.stat-group.death h3 {
-    color: var(--text-red);
-}
-
-.stat-group p {
-    margin: 5px 0 0 0;
-    font-size: 0.9rem;
-    font-weight: 700;
-}
-
-/* Map Visualization */
-#viz {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 1;
-}
-
-.states {
-    fill: var(--map-fill);
-    stroke: white;
-    stroke-width: 0.5px;
-}
-
-.event-circle {
-    opacity: 0.8;
-    stroke: none;
-}
-
-.event-ripple {
-    fill: none;
-    stroke-width: 2px;
-    opacity: 0.5;
-}
-
-.label-line {
-    stroke: white;
-    stroke-width: 1px;
-}
-
-.label-text {
-    fill: white;
-    font-size: 14px;
-    text-shadow: 1px 1px 2px black;
-    font-family: 'Playfair Display', serif;
-}
-
-.sub-label {
-    fill: #ddd;
-    font-size: 12px;
-    font-family: 'Roboto', sans-serif;
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; }
 }
