@@ -17,7 +17,7 @@ function canvasStub() {
 }
 
 test('label palette uses each real project color and readable ink for shaded paper', () => {
-  assert.equal(projects.length, 8);
+  assert.equal(projects.length, 7);
   for (const project of projects) assert.equal(labelPalette(project.color).accent, project.color);
   assert.equal(labelPalette('#fdd835').ink, '#000000');
   for (const color of ['#e53935', '#fb8c00', '#507aba', '#785489', '#c56699', '#2a2a2a', '#66bb6a']) {
@@ -50,8 +50,8 @@ test('each disk owns a unique texture containing its real title, color and numbe
     assert.ok(stub.fills.includes(project.color));
     return texture;
   });
-  assert.equal(new Set(textures.map(t => t.uuid)).size, 8);
-  assert.equal(new Set(textures.map(t => t.image)).size, 8);
+  assert.equal(new Set(textures.map(t => t.uuid)).size, projects.length);
+  assert.equal(new Set(textures.map(t => t.image)).size, projects.length);
   textures.forEach(t => t.dispose());
 });
 

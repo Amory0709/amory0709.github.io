@@ -18,7 +18,7 @@ const copy = () => ({ ...structuredClone(raw), navigation: [
 test('live disks and next/previous navigation follow newest-to-oldest project order', () => {
   const live = normalizeConfig(JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8')));
   assert.deepEqual(live.projects.map(p => p.title), [
-    'WhatIf Studio', 'SLB 100 Family Day', 'MeshBVH X-Ray', 'High Performance Points',
+    'WhatIf Studio', 'SLB 100 Family Day', 'MeshBVH X-Ray',
     '2024 IDPwD', 'Sound of Humanity', 'Electoral Map', 'BLUEbikes Availability'
   ]);
   assert.equal(live.projects.find(p => p.title === 'SLB 100 Family Day').color, '#66bb6a');
