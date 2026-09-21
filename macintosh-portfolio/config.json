@@ -120,6 +120,25 @@
       }
     },
     {
+      "title": "Web History",
+      "color": "#1565c0",
+      "desc": "An interactive timeline of the Web — from Tim Berners-Lee's 1989 proposal at CERN to WebGPU in 2023. Play the story or browse milestones, people and primary sources.",
+      "link": "https://web-history.onrender.com/",
+      "screen": {
+        "image": {
+          "src": "./assets/projects/web-history.png",
+          "alt": "An Interactive History of the Web — 1989 WWW proposal through WebGPU 2023",
+          "fit": "cover"
+        }
+      },
+      "embed": {
+        "enabled": true,
+        "url": "https://web-history.onrender.com/",
+        "width": 1300,
+        "height": 980
+      }
+    },
+    {
       "title": "Sound of Humanity",
       "color": "#e53935",
       "desc": "A data visualization of births, deaths and population change across the United States, with adjustable simulation speed.",
