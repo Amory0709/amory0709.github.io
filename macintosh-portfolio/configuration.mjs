@@ -100,7 +100,8 @@ export function normalizeConfig(raw) {
     site: {
       language: text(raw.site?.language, 'site.language') || 'en',
       pageTitle: text(raw.site?.pageTitle, 'site.pageTitle') || [name, title].filter(Boolean).join(' · '),
-      description: text(raw.site?.description, 'site.description') || [name, title, 'Portfolio'].filter(Boolean).join(' · ')
+      description: text(raw.site?.description, 'site.description') || [name, title, 'Portfolio'].filter(Boolean).join(' · '),
+      projectOrder: ['date-desc', 'date-asc', 'manual'].includes(raw.site?.projectOrder) ? raw.site.projectOrder : 'date-desc'
     },
     footer: { text: text(raw.footer?.text, 'footer.text', false, 200), note: text(raw.footer?.note, 'footer.note', false, 120) },
     navigation,
@@ -113,13 +114,15 @@ export function normalizeConfig(raw) {
       const color = text(project.color, `${path}.color`, true);
       if (!/^#[\da-f]{6}$/i.test(color)) throw new Error(`${path}.color: use a six-digit hex color, e.g. #e53935.`);
       const link = safeLink(project.link, `${path}.link`, email) || '#';
+      const date = text(project.date, `${path}.date`, false, 10);
+      if (date && !/^\d{4}(-\d{2}){0,2}$/.test(date)) throw new Error(`${path}.date: use YYYY-MM-DD or YYYY-MM (e.g. 2024-11-30).`);
       const embed = project.embed || {};
       if (typeof embed !== 'object' || Array.isArray(embed)) throw new Error(`${path}.embed: expected an object.`);
       if (embed.enabled != null && typeof embed.enabled !== 'boolean') throw new Error(`${path}.embed.enabled: use true or false.`);
       const defaultEmbedURL = link !== '#' && ['https:', 'http:'].includes(new URL(link, BASE).protocol) ? link : '';
       return {
         title: text(project.title, `${path}.title`, true, 100),
-        desc: text(project.desc, `${path}.desc`, false, 600), color,
+        desc: text(project.desc, `${path}.desc`, false, 600), color, date,
         link,
         screen: screenSettings(project.screen, screen, `${path}.screen`),
         embed: {
@@ -129,6 +132,19 @@ export function normalizeConfig(raw) {
           height: number(embed.height, 980, `${path}.embed.height`, 240, 1440)
         }
       };
+    }).sort((a, b) => {
+      // site.projectOrder controls display order.
+      // 'date-desc' = newest first (default), 'date-asc' = oldest first,
+      // 'manual' = preserve the order written in config.json.
+      // Each project must declare a `date` (YYYY-MM-DD or YYYY-MM).
+      // Projects without a date sort to the end regardless of direction.
+      if (raw.site?.projectOrder === 'manual') return 0;
+      const da = a.date || '', db = b.date || '';
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      const cmp = da.localeCompare(db);
+      return raw.site?.projectOrder === 'date-asc' ? cmp : -cmp;
     })
   };
 }

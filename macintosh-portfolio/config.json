@@ -8,7 +8,8 @@
   "site": {
     "language": "en",
     "pageTitle": "",
-    "description": ""
+    "description": "",
+    "projectOrder": "manual"
   },
   "navigation": [],
   "resume": {
@@ -47,7 +48,28 @@
   },
   "projects": [
     {
+      "title": "Web History",
+      "color": "#1565c0",
+      "desc": "An interactive timeline of the Web — from Tim Berners-Lee's 1989 proposal at CERN to WebGPU in 2023. Play the story or browse milestones, people and primary sources.",
+      "link": "https://web-history.onrender.com/",
+      "screen": {
+        "image": {
+          "src": "./assets/projects/web-history.png",
+          "alt": "An Interactive History of the Web — 1989 WWW proposal through WebGPU 2023",
+          "fit": "cover"
+        }
+      },
+      "embed": {
+        "enabled": true,
+        "url": "https://web-history.onrender.com/",
+        "width": 1300,
+        "height": 980
+      },
+      "date": "2026-09-21"
+    },
+    {
       "title": "WhatIf Studio",
+      "date": "2025-09-10",
       "color": "#0014dc",
       "desc": "An SLB Family Day portrait experience. Explore the interactive gallery and face-swap interface; this frontend preview does not run the AI service.",
       "link": "https://amory0709.github.io/what-if-studio/",
@@ -60,7 +82,7 @@
       },
       "embed": {
         "enabled": true,
-        "url": "/what-if-studio/",
+        "url": "https://amory0709.github.io/what-if-studio/",
         "width": 1300,
         "height": 980
       }
@@ -81,7 +103,8 @@
         "enabled": true,
         "width": 1300,
         "height": 980
-      }
+      },
+      "date": "2025-10-01"
     },
     {
       "title": "MeshBVH X-Ray",
@@ -99,7 +122,8 @@
         "enabled": true,
         "width": 1300,
         "height": 980
-      }
+      },
+      "date": "2025-06-30"
     },
     {
       "title": "2024 IDPwD",
@@ -117,26 +141,8 @@
         "enabled": true,
         "width": 1300,
         "height": 980
-      }
-    },
-    {
-      "title": "Web History",
-      "color": "#1565c0",
-      "desc": "An interactive timeline of the Web — from Tim Berners-Lee's 1989 proposal at CERN to WebGPU in 2023. Play the story or browse milestones, people and primary sources.",
-      "link": "https://web-history.onrender.com/",
-      "screen": {
-        "image": {
-          "src": "./assets/projects/web-history.png",
-          "alt": "An Interactive History of the Web — 1989 WWW proposal through WebGPU 2023",
-          "fit": "cover"
-        }
       },
-      "embed": {
-        "enabled": true,
-        "url": "https://web-history.onrender.com/",
-        "width": 1300,
-        "height": 980
-      }
+      "date": "2024-11-30"
     },
     {
       "title": "Sound of Humanity",
@@ -154,7 +160,8 @@
         "enabled": true,
         "width": 1300,
         "height": 980
-      }
+      },
+      "date": "2024-09-01"
     },
     {
       "title": "Electoral Map",
@@ -172,7 +179,8 @@
         "enabled": true,
         "width": 1300,
         "height": 980
-      }
+      },
+      "date": "2020-02-20"
     },
     {
       "title": "BLUEbikes Availability",
@@ -190,7 +198,8 @@
         "enabled": true,
         "width": 1300,
         "height": 980
-      }
+      },
+      "date": "2019-06-01"
     }
   ],
   "screen": {
