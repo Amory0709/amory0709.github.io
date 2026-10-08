@@ -116,7 +116,7 @@ test('project presentation inherits defaults and accepts independent artwork/typ
 });
 
 test('one to eight projects have distinct, finite home positions in every layout', () => {
-  for (let count = 1; count <= 8; count++) for (const mode of ['portrait', 'row', 'wide']) {
+  for (let count = 1; count <= 8; count++) for (const mode of ['portrait', 'row']) {
     const points = Array.from({ length: count }, (_, i) => diskPlacement(i, mode, count).position.toArray());
     assert.ok(points.flat().every(Number.isFinite));
     assert.equal(new Set(points.map(p => p.join(','))).size, count);

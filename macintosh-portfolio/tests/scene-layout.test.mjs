@@ -47,5 +47,22 @@ for (const [width, height] of [[1222, 720], [366, 615], [296, 339], [794, 265], 
 test('layout follows scene aspect ratio, including short landscape screens', () => {
   assert.equal(sceneLayout(390, 615), 'portrait');
   assert.equal(sceneLayout(1222, 720), 'row');
-  assert.equal(sceneLayout(794, 265), 'wide');
+  for (const [width, height] of [[794, 265], [1280, 500], [1456, 640], [1200, 534], [1200, 533]]) {
+    assert.equal(sceneLayout(width, height), 'row');
+  }
+});
+
+// Changing available height must not change the physical desktop arrangement.
+test('short laptop layouts keep every disk grounded in the foreground', () => {
+  for (let count = 1; count <= 8; count++) {
+    const baseline = Array.from({ length: count }, (_, i) => diskPlacement(i, 'row', count));
+    for (const [width, height] of [[1222, 780], [1280, 500], [1456, 640], [794, 265]]) {
+      const placements = baseline.map((_, i) => diskPlacement(i, sceneLayout(width, height), count));
+      assert.deepEqual(placements, baseline, 'resize preserves disk positions and scale');
+      for (const { position, scale } of placements) {
+        assert.equal(position.y - scale / 2, 0, 'disk bottom rests on the floor');
+        assert.ok(position.z - scale / 2 > mac.max.z, 'disk stays in front of the Mac');
+      }
+    }
+  }
 });
