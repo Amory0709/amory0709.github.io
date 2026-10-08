@@ -6,19 +6,18 @@ export const FAR_REFERENCE_FOCUS = .188;
 
 export function sceneLayout(width, height) {
   const aspect = Math.max(1, width) / Math.max(1, height);
-  return aspect < 1.05 ? 'portrait' : aspect > 2.25 ? 'wide' : 'row';
+  // Short laptop viewports still use the grounded foreground row.
+  // Fit the camera to the available space instead of floating disks beside the Mac.
+  return aspect < 1.05 ? 'portrait' : 'row';
 }
 
 export function diskPlacement(index, mode, count = 8) {
-  const scale = mode === 'portrait' ? 0.30 : mode === 'wide' ? 0.27 : 0.26;
+  const scale = mode === 'portrait' ? 0.30 : 0.26;
   const columns = Math.min(4, count);
   const rowCount = Math.min(columns, count - Math.floor(index / columns) * columns);
-  const sideRows = Math.ceil(count / 2);
   const position = mode === 'portrait'
     ? new THREE.Vector3((index % columns - (rowCount - 1) / 2) * 0.39, scale / 2, index < columns ? 1.35 : 2.2)
-    : mode === 'wide'
-      ? new THREE.Vector3(index < sideRows ? -1.15 : 1.15, .745 + (sideRows - 1) * .185 - (index % sideRows) * .37, 0.7)
-      : new THREE.Vector3((index - (count - 1) / 2) * 2.04 / 7, scale / 2, 1.55);
+    : new THREE.Vector3((index - (count - 1) / 2) * 2.04 / 7, scale / 2, 1.55);
   return { position, scale };
 }
 
@@ -48,8 +47,8 @@ export function fitCamera(boxes, target, direction, aspect, fill = 0.9) {
 export function sceneCameraFrames(macBounds, homeBounds, insertedBounds, aspect, mode, screenBounds) {
   // Aim lower to balance the Mac against the foreground disks. This lets the
   // overview move closer without cropping the row to make the computer larger.
-  const overviewTarget = new THREE.Vector3(0, mode === 'wide' ? 0.72 : 0.48, mode === 'portrait' ? 0.55 : 0.3);
-  const overviewDirection = new THREE.Vector3(0, mode === 'portrait' ? 0.22 : mode === 'wide' ? 0.11 : 0.17, 1);
+  const overviewTarget = new THREE.Vector3(0, 0.48, mode === 'portrait' ? 0.55 : 0.3);
+  const overviewDirection = new THREE.Vector3(0, mode === 'portrait' ? 0.22 : 0.17, 1);
   const focusTarget = macBounds.getCenter(new THREE.Vector3()); focusTarget.y += 0.025;
   const focusDirection = new THREE.Vector3(0, 0.11, 1);
   const frames = {

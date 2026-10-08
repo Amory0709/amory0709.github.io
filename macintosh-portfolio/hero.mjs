@@ -3,7 +3,7 @@ import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from './vendor/three/addons/environments/RoomEnvironment.js';
 import html2canvas from './vendor/html2canvas.esm.js';
 import { CameraFocus, wheelPixels } from './camera-focus.mjs?v=4';
-import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose, projectViewFocus, anchorFarthestView, FAR_REFERENCE_FOCUS } from './scene-layout.mjs?v=8';
+import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose, projectViewFocus, anchorFarthestView, FAR_REFERENCE_FOCUS } from './scene-layout.mjs?v=9';
 import { MOBILE_PAN_QUERY, sceneStageWidth, resizedScrollLeft } from './mobile-pan.mjs';
 import { ScreenPortal } from './screen-portal.mjs?v=3';
 import { projectScreen } from './project-screen.mjs?v=5';
@@ -265,8 +265,12 @@ export class HeroView {
     const inserted = boundsAt(this.seatedPosition(), new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)), this.insertScale);
     this.cameraFrames = sceneCameraFrames(this.macBounds, homes, inserted, this.camera.aspect, this.layoutMode, this.screenBounds);
     const bounds = [this.macBounds, ...homes, inserted];
-    // Preserve the saved desktop composition; fit all disks on narrow phones.
-    const anchor = this.mobile ? Math.min(FAR_REFERENCE_FOCUS, projectViewFocus(this.cameraFrames, bounds, this.camera.aspect)) : FAR_REFERENCE_FOCUS;
+    // Preserve the saved composition where it fits. Short desktop viewports
+    // must not crop the foreground row when rebasing the far/zero camera pose.
+    const needsSafetyFit = this.mobile || (!this.panScene && this.camera.aspect > 2.25);
+    const anchor = needsSafetyFit
+      ? Math.min(FAR_REFERENCE_FOCUS, projectViewFocus(this.cameraFrames, bounds, this.camera.aspect))
+      : FAR_REFERENCE_FOCUS;
     anchorFarthestView(this.cameraFrames, anchor);
     // User-approved insertion view (2026-09-10 21:46): prioritize the CRT
     // and seated disk, not the waiting row or the full computer casing.

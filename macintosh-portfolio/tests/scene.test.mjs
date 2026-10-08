@@ -215,7 +215,7 @@ test('insertion destination matches the saved close composition with the real CR
   mac.updateMatrixWorld(true);
   let screen; mac.traverse(o => { if (o.isMesh && o.material.name === 'Screen') screen = o; });
   const fit = fitFloppyToDrive(screen, floppy);
-  for (const [width,height,visibleWidth] of [[1222,780],[366,640],[794,265],[1072,684,366],[602,384,296]]) {
+  for (const [width,height,visibleWidth] of [[1222,780],[366,640],[794,265],[1280,500],[1456,640],[1072,684,366],[602,384,296]]) {
     const h = Object.create(HeroView.prototype);
     const mode = visibleWidth ? 'row' : sceneLayout(width,height);
     Object.assign(h, {macBounds:new THREE.Box3().setFromObject(mac),screenBounds:new THREE.Box3().setFromObject(screen),
@@ -226,6 +226,19 @@ test('insertion destination matches the saved close composition with the real CR
       camera:new THREE.PerspectiveCamera(30,width/height,.1,50)});
     h.arrangeFloppies(); h.fitSceneCamera();
     assert.ok(h.floppies.every(f => f.group.visible), 'all waiting disks stay in the real 3D scene');
+    if (!visibleWidth && width / height > 2.25) {
+      const overview = cameraPose(h.cameraFrames, 0);
+      h.camera.position.copy(overview.position); h.camera.lookAt(overview.target); h.camera.updateMatrixWorld();
+      for (const f of h.floppies) {
+        const box = new THREE.Box3().setFromObject(f.group);
+        assert.ok(Math.abs(box.min.y) < .002, 'real disk mesh rests on the floor');
+        assert.ok(box.min.z > h.macBounds.max.z, 'real disk mesh remains ahead of the computer');
+        for (const p of boxCorners(box).map(p => p.project(h.camera))) {
+          assert.ok(Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1, `waiting disk visible at ${width}x${height}: ${p.toArray()}`);
+        }
+      }
+    }
+
     const pose=cameraPose(h.cameraFrames,h.projectFocus);
     h.camera.position.copy(pose.position);h.camera.lookAt(pose.target);h.camera.updateMatrixWorld();
     const seated=h.floppyBounds.clone().applyMatrix4(new THREE.Matrix4().compose(h.seatedPosition(),
