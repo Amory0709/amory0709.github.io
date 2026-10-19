@@ -34,6 +34,16 @@ NEXT_PUBLIC_BASE_PATH=/what-if-studio NEXT_PUBLIC_STATIC_DEMO=true NEXT_TELEMETR
 
 Copy only `apps/web/out/` into this repository's `what-if-studio/` directory, review the changes, then commit. Do not publish server credentials, private uploads or model storage. Re-enabling generation requires separately hosting the Python/AI service; GitHub Pages cannot run it.
 
+The 2026-10-19 iPhone Safari source fix is [WhatIfStudio commit 25e78dd](https://github.com/Amory0709/WhatIfStudio/commit/25e78dd).
+The same rendering fix is applied to this existing export with
+`python3 deployment/apply-whatif-card-faces.py`. Run it again after replacing
+the export. It adds the touch-only stylesheet in
+`deployment/whatif-card-faces.css` to every HTML entry point. Image cards share
+one painted face instead of painting duplicate filtered fronts and backs;
+all 50 cards, images, animation code, and desktop hover behavior are retained.
+Initial opening, eject/reinsert, and reload/reinsert passed the user's iPhone
+control test. The native browser termination mechanism is not confirmed.
+
 ## Local verification
 
 Serve this repository root with `python3 -m http.server 4177 --bind 127.0.0.1` and open http://localhost:4177/. Run the template tests with `npm --prefix macintosh-portfolio test`.

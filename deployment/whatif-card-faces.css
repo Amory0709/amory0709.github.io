@@ -1,0 +1,12 @@
+/* Same rendering change as the successful iPhone diagnostic control.
+   The iframe is 1300px wide on phones, so match input capabilities.
+   Image backs already mirror the front; gradient-only cards keep both faces. */
+@media (hover: none) and (pointer: coarse) {
+  div.preserve-3d.cursor-pointer:has(> div:first-child > img) > div:first-child {
+    backface-visibility: visible !important;
+  }
+
+  div.preserve-3d.cursor-pointer:has(> div:first-child > img) > div:nth-child(2) {
+    display: none !important;
+  }
+}

@@ -72,7 +72,7 @@
       "date": "2025-09-10",
       "color": "#0014dc",
       "desc": "An SLB Family Day portrait experience. Explore the interactive gallery and face-swap interface; this frontend preview does not run the AI service.",
-      "link": "https://amory0709.github.io/what-if-studio/",
+      "link": "https://amory0709.github.io/what-if-studio/?v=card-faces-20261019",
       "screen": {
         "image": {
           "src": "./assets/projects/what-if-studio.png",
@@ -82,7 +82,7 @@
       },
       "embed": {
         "enabled": true,
-        "url": "https://amory0709.github.io/what-if-studio/",
+        "url": "https://amory0709.github.io/what-if-studio/?v=card-faces-20261019",
         "width": 1300,
         "height": 980
       }
