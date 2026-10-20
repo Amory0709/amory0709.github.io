@@ -93,7 +93,7 @@
       "desc": "An interactive 3D Family Day experience with single-player and two-player modes, bilingual guidance and camera-based gesture challenges.",
       "link": "https://amory0709.github.io/SLB100FamilyDay/docs/",
       "screen": {
-        "textColor": "#0014dc",
+        "textColor": "#000000",
         "image": {
           "src": "./assets/projects/slb100-family-day.png",
           "alt": "SLB 100 Family Day — Move it Move it interactive 3D experience",
