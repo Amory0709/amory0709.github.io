@@ -1,0 +1,30 @@
+/* Original 32px monochrome pixel cursors, with native hotspots and fallbacks.
+   PNG data URLs avoid extra requests and retain hard pixel edges on Safari.
+   No pointer-following DOM element: the operating system moves the cursor. */
+@media (any-pointer: fine) {
+  :root {
+    --mac-cursor-default: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAiUlEQVR42uXXQQoAIQgF0Izuf2VnM0KEQjNlfatVkYt8SlRKtw+SCTOzGkBEngfIuwWyknGqk+Z33COwWgJXYJUEvoC3RBwBL4l4ArMl4grMkogvMCpxjoAlAS9QegPbclpZfr0K8AUcn4PgAkrNqf4/yH7bC7LulcMTsDK3JM7pgb9/wFGI7QIPIiFkNZSBzlsAAAAASUVORK5CYII=") 4 4, default;
+    --mac-cursor-pointer: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAiUlEQVR42u2X2xKAIAhEd5v+/5e3h6amizOWMgkm7wIecBHg78aCMzLwsdsUiYAAQDoDIFlFojmBkcBIYDb0VaQP/RBI6MMjIi4JmGr9RuZAhG5nQU7rk7V+HfAyO/wLkaTqW4f7D8ii1qF7gGuivL2AMQ0tax/iQ/JJL/TfA7m9Id5mZB2jOYEFG/ohVFWs4hgAAAAASUVORK5CYII=") 12 2, pointer;
+    --mac-cursor-text: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAdUlEQVR42u2WUQrAMAhDm+H9r+z+S0XrBlWa/FYweaB1DOp2wXpQVf21EbDs9ZwmIAHnFqFUXT8CVtJs4nIEEC2cp2ImsCCFFgRkd469/RBNXoYADdAADUh2E3p1bTbh9kXkBbNA3XMReb9k/4voa105AhT1AivdNjdfeuCyAAAAAElFTkSuQmCC") 15 15, text;
+  }
+
+  html, body, .hero-3d, .hero-3d:active {
+    cursor: var(--mac-cursor-default);
+  }
+
+  p, h1, h2, h3, h4, blockquote, pre, code,
+  .brand, .brand-sub, #copyright, .credit-block,
+  input:not([type]), input[type="text"], input[type="search"],
+  input[type="email"], input[type="url"], input[type="password"],
+  textarea, [contenteditable="true"] {
+    cursor: var(--mac-cursor-text);
+  }
+
+  a[href], button, summary, .model-credits summary, [role="button"], .hero-3d.hover-floppy {
+    cursor: var(--mac-cursor-pointer);
+  }
+
+  button:disabled, input:disabled, textarea:disabled, [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}

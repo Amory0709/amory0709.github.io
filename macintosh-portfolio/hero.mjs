@@ -76,11 +76,16 @@ export class HeroView {
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(this.viewport || canvas);
     canvas.addEventListener('pointermove', event => this.onPointerMove(event));
-    canvas.addEventListener('pointerleave', () => {
+    this.diskScroll?.addEventListener('pointermove', event => this.onPointerMove(event));
+    const resetPointer = () => {
       this.targetPointer.set(0, 0);
       this.targetGlassPointer.set(0, 0);
+      this.canvas.style.removeProperty('cursor');
+      this.diskScroll?.style.removeProperty('cursor');
       this.setHovered(-1);
-    });
+    };
+    canvas.addEventListener('pointerleave', resetPointer);
+    this.diskScroll?.addEventListener('pointerleave', resetPointer);
     canvas.addEventListener('click', event => this.onClick(event));
     this.diskScroll?.addEventListener('scroll', () => {
       this.diskScrollTime = performance.now();
@@ -393,14 +398,18 @@ export class HeroView {
     const hit = this.hit(event);
     if (hit?.object === this.screen && hit.uv) this.targetGlassPointer.copy(hit.uv).multiplyScalar(2).subScalar(1);
     else this.targetGlassPointer.set(0, 0);
+    const floppyIndex = hit?.object.userData.floppyIndex ?? -1;
+    const resumeHit = this.active === -1 && hit?.object === this.screen && this.desktopResume?.hit(hit.uv);
+    const clickable = resumeHit || hit && (floppyIndex !== -1 || hit.object === this.screen && this.active !== -1);
+    this.canvas.style.cursor = clickable
+      ? 'var(--mac-cursor-pointer, pointer)' : 'var(--mac-cursor-default, default)';
+    if (this.diskScroll) this.diskScroll.style.cursor = this.canvas.style.cursor;
     // Compact layouts disable disk hover, but glass still responds to a mouse
     // or touch pointer within the screen.
     if (this.panScene) return;
     const ndc = pointerNDC(event, this.canvas.getBoundingClientRect());
     this.targetPointer.copy(ndc);
-    this.setHovered(hit?.object.userData.floppyIndex ?? -1);
-    const resumeHit = this.active === -1 && hit?.object === this.screen && this.desktopResume?.hit(hit.uv);
-    this.canvas.style.cursor = resumeHit || hit && (this.hovered !== -1 || hit.object === this.screen && this.active !== -1) ? 'pointer' : 'default';
+    this.setHovered(floppyIndex);
   }
 
   onWheel(event) {
