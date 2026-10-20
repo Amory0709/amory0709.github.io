@@ -6,7 +6,8 @@ import { CameraFocus, wheelPixels } from './camera-focus.mjs?v=4';
 import { sceneLayout, diskPlacement, sceneCameraFrames, cameraPose, projectViewFocus, anchorFarthestView, FAR_REFERENCE_FOCUS } from './scene-layout.mjs?v=9';
 import { MOBILE_PAN_QUERY, sceneStageWidth, resizedScrollLeft } from './mobile-pan.mjs';
 import { ScreenPortal } from './screen-portal.mjs?v=3';
-import { projectScreen } from './project-screen.mjs?v=5';
+import { projectScreen } from './project-screen.mjs?v=8';
+import { LiquidGlassMaterial, captureGlassArtwork, applyGlassTextContrast, isolateGlassForeground } from './liquid-glass.mjs?v=10';
 import { createProjectLabelTexture, mapLabelGeometry } from './project-label.mjs';
 import { setSceneLoadState } from './scene-loading.mjs';
 import { DesktopResume } from './desktop-resume.mjs';
@@ -29,6 +30,8 @@ export class HeroView {
     this.raycaster = new THREE.Raycaster();
     this.targetPointer = new THREE.Vector2();
     this.pointer = new THREE.Vector2();
+    this.targetGlassPointer = new THREE.Vector2();
+    this.glassPointer = new THREE.Vector2();
     this.cameraFocus = new CameraFocus();
     this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.panQuery = window.matchMedia(MOBILE_PAN_QUERY);
@@ -75,6 +78,7 @@ export class HeroView {
     canvas.addEventListener('pointermove', event => this.onPointerMove(event));
     canvas.addEventListener('pointerleave', () => {
       this.targetPointer.set(0, 0);
+      this.targetGlassPointer.set(0, 0);
       this.setHovered(-1);
     });
     canvas.addEventListener('click', event => this.onClick(event));
@@ -349,18 +353,32 @@ export class HeroView {
 
   async paintScreen() {
     const revision = ++this.screenRevision;
+    const glass = this.inner.classList.contains('has-project');
+    // Snapshot the current crop before awaiting the foreground raster, so a
+    // slow response cannot mix two projects. screenRevision rejects stale work.
+    const artwork = glass ? captureGlassArtwork(document) : null;
+    if (glass) applyGlassTextContrast(document, artwork);
     const bitmap = await html2canvas(this.inner, {
-      backgroundColor: '#151615', scale: 2, logging: false, scrollX: 0, scrollY: 0, useCORS: true
+      backgroundColor: glass ? null : '#151615', scale: 2, logging: false, scrollX: 0, scrollY: 0, useCORS: true,
+      onclone: glass ? isolateGlassForeground : undefined
     });
     if (revision !== this.screenRevision) return;
-    const previous = this.screen.material.map;
+    const previous = this.screen.material;
     const texture = new THREE.CanvasTexture(bitmap);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-    this.screen.material.color.set('#ffffff');
-    this.screen.material.map = texture;
-    this.screen.material.needsUpdate = true;
-    previous?.dispose();
+    if (glass) {
+      const background = new THREE.CanvasTexture(artwork);
+      background.colorSpace = THREE.SRGBColorSpace;
+      background.anisotropy = texture.anisotropy;
+      this.screen.material = new LiquidGlassMaterial(texture, background);
+      this.screen.material.update(performance.now(), this.glassPointer, this.reducedMotion);
+    } else {
+      this.screen.material = new THREE.MeshBasicMaterial({ map: texture, toneMapped: false });
+    }
+    if (!(previous instanceof LiquidGlassMaterial)) previous.map?.dispose();
+    previous.dispose();
+    this.sceneDirty = true;
   }
 
   hit(event) {
@@ -372,10 +390,14 @@ export class HeroView {
 
   onPointerMove(event) {
     if (!this.mac) return;
+    const hit = this.hit(event);
+    if (hit?.object === this.screen && hit.uv) this.targetGlassPointer.copy(hit.uv).multiplyScalar(2).subScalar(1);
+    else this.targetGlassPointer.set(0, 0);
+    // Compact layouts disable disk hover, but glass still responds to a mouse
+    // or touch pointer within the screen.
     if (this.panScene) return;
     const ndc = pointerNDC(event, this.canvas.getBoundingClientRect());
     this.targetPointer.copy(ndc);
-    const hit = this.hit(event);
     this.setHovered(hit?.object.userData.floppyIndex ?? -1);
     const resumeHit = this.active === -1 && hit?.object === this.screen && this.desktopResume?.hit(hit.uv);
     this.canvas.style.cursor = resumeHit || hit && (this.hovered !== -1 || hit.object === this.screen && this.active !== -1) ? 'pointer' : 'default';
@@ -521,6 +543,7 @@ export class HeroView {
     // Intro and live project share the camera, including any manual zoom.
     this.screen.material.color.set('#151615');
     this.targetPointer.set(0, 0); this.pointer.set(0, 0);
+    this.targetGlassPointer.set(0, 0); this.glassPointer.set(0, 0);
     document.getElementById('activeProjectLink').textContent = '← Intro';
     const external = document.getElementById('externalProjectLink');
     external.href = project.link !== '#' ? project.link : project.embed.url;
@@ -582,6 +605,10 @@ export class HeroView {
   tick(time) {
     this.frame = requestAnimationFrame(next => this.tick(next));
     this.pointer.lerp(this.targetPointer, 0.06);
+    this.glassPointer.lerp(this.targetGlassPointer, 0.10);
+    if (!this.portal?.active && this.screen?.material instanceof LiquidGlassMaterial) {
+      this.screen.material.update(time, this.glassPointer, this.reducedMotion);
+    }
     this.updateCamera(time);
     this.updateDiskScroll();
     let objectsMoving = false;

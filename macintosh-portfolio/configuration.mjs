@@ -1,4 +1,4 @@
-import { SCREEN_DEFAULTS } from './project-screen.mjs?v=5';
+import { SCREEN_DEFAULTS } from './project-screen.mjs?v=8';
 const BASE = 'https://portfolio.invalid/';
 
 function number(value, fallback, field, min, max) {
@@ -19,7 +19,12 @@ function screenSettings(value = {}, defaults = SCREEN_DEFAULTS, path = 'screen')
   if (!image || typeof image !== 'object' || Array.isArray(image)) throw new Error(`${path}.image: expected { src, alt, fit }.`);
   const fit = image.fit || 'cover';
   if (!['cover', 'contain', 'concept'].includes(fit)) throw new Error(`${path}.image.fit: use cover, contain or concept.`);
+  const textTone = value.textTone ?? defaults.textTone;
+  if (!['auto', 'light', 'dark'].includes(textTone)) throw new Error(`${path}.textTone: use auto, light or dark.`);
+  const textColor = value.textColor ?? defaults.textColor;
+  if (typeof textColor !== 'string' || textColor && !/^#[\da-f]{6}$/i.test(textColor)) throw new Error(`${path}.textColor: use a six-digit hex color or an empty string for automatic color.`);
   return {
+    textTone, textColor,
     titleSize: number(value.titleSize, defaults.titleSize, `${path}.titleSize`, 24, 60),
     descriptionSize: number(value.descriptionSize, defaults.descriptionSize, `${path}.descriptionSize`, 14, 28),
     buttonSize: number(value.buttonSize, defaults.buttonSize, `${path}.buttonSize`, 14, 26),

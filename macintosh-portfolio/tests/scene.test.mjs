@@ -266,6 +266,7 @@ test('rapid switching and interrupted ejection leave exactly one inserted disk',
     mobile: false, active: -1, hovered: -1, reducedMotion: true, insertScale: 0.375,
     inner: { classList: { remove() {} } }, actions: {}, status: {}, slot: new THREE.Vector3(0.2, 0.45, 0.5),
     pointer: new THREE.Vector2(), targetPointer: new THREE.Vector2(), baseCamera: new THREE.Vector3(0, 1.1, 4.65),
+    glassPointer: new THREE.Vector2(), targetGlassPointer: new THREE.Vector2(),
     camera: new THREE.PerspectiveCamera(), cameraTarget: new THREE.Vector3(0, 0.55, 0), renderer: { render() {} },
     cameraFocus: new CameraFocus(), canvas: { dataset: {} },
     paintScreen() {}, updateDiagnostics() {}, showProject(index) {

@@ -1,7 +1,5 @@
-import { paintFrostedArtwork } from './frosted-artwork.mjs';
-
 export const SCREEN_DEFAULTS = Object.freeze({
-  titleSize: 48, descriptionSize: 22, buttonSize: 22, buttonText: 'View project',
+  titleSize: 48, descriptionSize: 22, buttonSize: 22, buttonText: 'View project', textTone: 'auto', textColor: '',
   image: { src: '', alt: '', fit: 'contain' }
 });
 
@@ -11,6 +9,8 @@ const artworkRequests = new WeakMap();
 export async function projectScreen(project, doc = document, { onArtworkReady = () => {}, imageTimeout = 6000 } = {}) {
   const settings = project.screen || SCREEN_DEFAULTS;
   const card = doc.getElementById('projectCard');
+  card.dataset.textTone = settings.textTone || 'auto';
+  card.dataset.textColor = settings.textColor || '';
   for (const [name, value] of [['title', settings.titleSize], ['description', settings.descriptionSize], ['button', settings.buttonSize]]) {
     card.style.setProperty(`--screen-${name}-size`, `${value}px`);
   }
@@ -50,10 +50,6 @@ export async function projectScreen(project, doc = document, { onArtworkReady = 
       const width = artwork.naturalWidth * scale, height = artwork.naturalHeight * scale;
       Object.assign(artwork.style, { position: 'absolute', width: `${width}px`, height: `${height}px`,
         left: `${(cover.clientWidth-width)/2}px`, top: `${(cover.clientHeight-height)/2}px` });
-    }
-    if (frost?.getContext) {
-      try { paintFrostedArtwork(frost, artwork, cover); }
-      catch { frost.hidden = true; } // The translucent glass remains readable if pixel access is unavailable.
     }
   };
   const showFallback = (loading = false) => {

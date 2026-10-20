@@ -22,6 +22,7 @@ test('intro and live project keep identical camera poses, including manual zoom 
         screen:{titleSize:38,descriptionSize:20,buttonSize:18,buttonText:'View project',image:{src:'',alt:'',fit:'contain'}}}],
       cameraFocus:new CameraFocus(),camera:new THREE.PerspectiveCamera(),baseCamera:new THREE.Vector3(0,1,5),cameraTarget:new THREE.Vector3(0,1,0),
       pointer:new THREE.Vector2(.8,.7),targetPointer:new THREE.Vector2(.8,.7),
+      glassPointer:new THREE.Vector2(),targetGlassPointer:new THREE.Vector2(),
       canvas:{dataset:{},focus(){}},inner:getElementById('screenInner'),status:getElementById('sceneStatus'),actions:getElementById('projectActions'),
       screen:{material:{color:new THREE.Color()}},paintScreen(){},updateDiagnostics(){},
       portal:{active:false,open(){this.active=true;},close(){this.active=false;},update(){}}
