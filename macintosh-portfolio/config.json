@@ -1,14 +1,14 @@
 {
   "profile": {
     "name": "Mengyu Han",
-    "title": "Software Engineer · 3D, Systems & Product Engineering",
+    "title": "Software Engineer · 3D, Architecture & Product Delivery",
     "initials": "My/H",
     "email": "seaseahan79@gmail.com"
   },
   "site": {
     "language": "en",
     "pageTitle": "Mengyu Han | Software Engineer · Real-Time 3D & Product Engineering",
-    "description": "Product-minded software engineer building high-performance web applications, real-time 3D systems, and full-stack products—from architecture and technical decisions to iterative delivery.",
+    "description": "Software engineer building high-performance web, real-time 3D, and full-stack products—connecting system architecture, product thinking, and agile delivery.",
     "projectOrder": "manual"
   },
   "navigation": [],
@@ -50,7 +50,7 @@
     {
       "title": "Web History",
       "color": "#1565c0",
-      "desc": "An interactive timeline of the Web — from Tim Berners-Lee's 1989 proposal at CERN to WebGPU in 2023. Play the story or browse milestones, people and primary sources.",
+      "desc": "A story-driven interactive timeline of the Web, with guided playback, exploratory navigation, and source-backed milestones from the 1989 WWW proposal to WebGPU.",
       "link": "https://web-history.onrender.com/",
       "screen": {
         "image": {
@@ -71,7 +71,7 @@
       "title": "WhatIf Studio",
       "date": "2025-09-10",
       "color": "#0014dc",
-      "desc": "An SLB Family Day portrait experience. Explore the interactive gallery and face-swap interface; this frontend preview does not run the AI service.",
+      "desc": "An interactive portrait product with a mobile-friendly gallery and AI face-swap interface. This public frontend preview does not run the AI service.",
       "link": "https://amory0709.github.io/what-if-studio/?v=card-faces-20261019",
       "screen": {
         "image": {
@@ -90,7 +90,7 @@
     {
       "title": "SLB 100 Family Day",
       "color": "#ffffff",
-      "desc": "An interactive 3D Family Day experience with single-player and two-player modes, bilingual guidance and camera-based gesture challenges.",
+      "desc": "A real-time 3D event experience with one- and two-player modes, bilingual onboarding, and camera-based gesture challenges—combining interaction design and browser engineering.",
       "link": "https://amory0709.github.io/SLB100FamilyDay/docs/",
       "screen": {
         "textColor": "#000000",
@@ -110,7 +110,7 @@
     {
       "title": "MeshBVH X-Ray",
       "color": "#507aba",
-      "desc": "Cross-section viewer for massive 3D meshes using BVH-accelerated raycasting. Slices through millions of triangles in real time.",
+      "desc": "An interactive 3D mesh inspection tool using BVH-accelerated raycasting for cross-sections—demonstrating spatial indexing and performance-conscious browser engineering.",
       "link": "https://amory0709.github.io/three-mesh-bvh-xray/",
       "screen": {
         "image": {
