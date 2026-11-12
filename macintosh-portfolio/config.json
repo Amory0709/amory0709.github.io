@@ -11,7 +11,12 @@
     "description": "Software engineer building high-performance web, real-time 3D, and full-stack products—connecting system architecture, product thinking, and agile delivery.",
     "projectOrder": "manual"
   },
-  "navigation": [],
+  "navigation": [
+    {
+      "label": "Engineering",
+      "href": "./engineering.html"
+    }
+  ],
   "resume": {
     "enabled": true,
     "label": "简历 / CV",
