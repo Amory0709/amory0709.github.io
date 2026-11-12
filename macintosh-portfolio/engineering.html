@@ -16,6 +16,8 @@
     html { scroll-behavior:smooth; }
     body { margin:0; background:#fff; color:var(--ink); font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; }
     a { color:var(--blue); text-underline-offset:3px; }
+    .skip { position:absolute; top:-100px; left:8px; z-index:10; background:#fff; padding:8px; }
+    .skip:focus { top:8px; }
     a:hover { text-decoration-thickness:2px; }
     a:focus-visible { outline:3px solid #2279ad; outline-offset:3px; border-radius:2px; }
     .wrap { width:min(100% - 40px,980px); margin:auto; }
@@ -56,7 +58,7 @@
   </style>
 </head>
 <body>
-  <a href="#main" style="position:absolute;top:-100px;left:8px;z-index:10;background:#fff;padding:8px" onfocus="this.style.top='8px'" onblur="this.style.top='-100px'">Skip to content</a>
+  <a class="skip" href="#main">Skip to content</a>
   <header><div class="wrap top"><a class="name" href="https://amory0709.github.io/">Mengyu Han</a><a class="back" href="https://amory0709.github.io/">← Interactive portfolio</a></div></header>
   <main id="main" class="wrap">
     <div class="intro">
@@ -91,7 +93,7 @@
       <div class="work">
         <article><h3>3D Asset Editor · Interactive product architecture</h3><p>React / TypeScript editor exploring undo transactions, geometry mutation, state boundaries, collider configuration, and simulation lifecycles. Experimental, single-user scope.</p><a href="https://github.com/Amory0709/3d-editor">Inspect source ↗</a></article>
         <article><h3>High-Scale Visualization Lab · GPU and async systems</h3><p>WebGL2 / experimental WebGPU rendering with cancellable requests, data workers, surface/volume previews, and correctness-oriented performance experiments.</p><a href="https://github.com/Amory0709/reservoir-volume-lab">Inspect source ↗</a></article>
-        <article><h3>Agile Thinking Prompt · Engineering delivery methods</h3><p>An experiment in outcome-driven AI-assisted implementation: acceptance criteria, decisions with trade-offs, WIP limits, and honest verification. Not a substitute for Scrum.</p><a href="https://github.com/Amory0709/Agile-Thinking-Prompt">Inspect toolkit ↗</a></article>
+        <article><h3>Agile Thinking Prompt · Engineering delivery methods</h3><p>An experiment in outcome-driven AI-assisted implementation: acceptance criteria, decisions with trade-offs, WIP limits, and honest verification. Not a substitute for Scrum.</p><a href="https://github.com/Amory0709/Agile-Thinking-Prompt/pull/1">Review proposed toolkit (draft) ↗</a></article>
         <article><h3>The Web — A Living History · Product craftsmanship</h3><p>An interactive educational experience connecting visual storytelling, user navigation, and accessible technical explanation.</p><a href="https://web-history.onrender.com/">Explore experience ↗</a></article>
       </div>
       <p class="note">Public repositories include experiments and prototypes; their descriptions distinguish implemented functionality from planned work. Professional impact figures above come from project experience, not independently audited public benchmarks.</p>
