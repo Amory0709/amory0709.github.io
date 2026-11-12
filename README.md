@@ -12,7 +12,7 @@ Edit [`macintosh-portfolio/config.json`](macintosh-portfolio/config.json) to cha
 
 The root `index.html` shares runtime files with `/macintosh-portfolio/` through a base URL. Keep the two HTML entries synchronized when changing markup, retaining the root base tag. GitHub Actions deploys the repository from `master` with Git LFS enabled.
 
-The seven featured works run newest to oldest: WhatIf Studio, SLB 100 Family Day, MeshBVH X-Ray, 2024 IDPwD, Sound of Humanity, Electoral Map and BLUEbikes Availability. The `projects` array controls the disk order and previous/next navigation. 3D Editor is no longer featured. Public project directories remain available. Confidential project demos and their preview assets are excluded from the published site.
+The eight featured works run newest to oldest: WhatIf Studio, SLB 100 Family Day, MeshBVH X-Ray, 2024 IDPwD, Sound of Humanity, Electoral Map and BLUEbikes Availability. The `projects` array controls the disk order and previous/next navigation. 3D Editor is no longer featured. Public project directories remain available. Confidential project demos and their preview assets are excluded from the published site.
 
 Ordering uses repository creation or the earliest available project record, not recent maintenance/deployment dates: WhatIf Studio (2026-08-09), Family Day (2026-07-28), MeshBVH (2026-06-30) (2026-02-02), IDPwD (2024-11-30), Sound of Humanity (existing thumbnail added 2020-11-05), Electoral Map and BLUEbikes (both added 2020-02-21; original relative order retained). These are ordering references, not claimed completion dates.
 
@@ -43,6 +43,12 @@ one painted face instead of painting duplicate filtered fronts and backs;
 all 50 cards, images, animation code, and desktop hover behavior are retained.
 Initial opening, eject/reinsert, and reload/reinsert passed the user's iPhone
 control test. The native browser termination mechanism is not confirmed.
+
+## Engineering profile page
+
+The optional [Engineering page](macintosh-portfolio/engineering.html) is linked from the main portfolio navigation. It summarizes transferable strengths in system architecture, performance engineering, product delivery, and Agile collaboration, with links to public evidence. It is a lightweight standalone HTML page; the existing 3D portfolio, resume dialog, and project disks are unchanged.
+
+The profile's selected professional outcomes are context-specific and should be reviewed before public release. The U.S. patent link points to the publicly published grant.
 
 ## Local verification
 
