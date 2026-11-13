@@ -33,3 +33,30 @@ jobs:
           node-version: '22'
       - name: Run portfolio regression tests
         run: npm --prefix macintosh-portfolio test
+
+  browser-smoke:
+    name: Responsive browser smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser test dependency
+        working-directory: macintosh-portfolio
+        run: npm install --no-save --no-package-lock playwright@1.56.1
+      - name: Install Chromium and dependencies
+        working-directory: macintosh-portfolio
+        run: npx playwright install --with-deps chromium
+      - name: Check profile on desktop and two mobile viewports
+        run: node macintosh-portfolio/scripts/smoke-engineering.mjs
+      - name: Retain browser screenshots for human review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engineering-responsive-screenshots
+          path: macintosh-portfolio/artifacts/engineering-smoke/*.png
+          if-no-files-found: warn
