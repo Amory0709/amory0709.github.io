@@ -12,7 +12,7 @@ Edit [`macintosh-portfolio/config.json`](macintosh-portfolio/config.json) to cha
 
 The root `index.html` shares runtime files with `/macintosh-portfolio/` through a base URL. Keep the two HTML entries synchronized when changing markup, retaining the root base tag. GitHub Actions deploys the repository from `master` with Git LFS enabled.
 
-The eight featured works, in display order: Web History, WhatIf Studio, SLB 100 Family Day, MeshBVH X-Ray, 2024 IDPwD, Sound of Humanity, Electoral Map, BLUEbikes Availability. The `projects` array in `config.json` is the source of truth for their current order and previous/next navigation; do not infer release dates from the position of a project card. 3D Editor is no longer featured as a floppy-disk project, but remains linked from the Engineering page. Public project directories remain available. Confidential project demos and their preview assets are excluded from the published site.
+Featured projects, in display order: Web History, WhatIf Studio, SLB 100 Family Day, MeshBVH X-Ray, 2024 IDPwD, Sound of Humanity, Electoral Map, BLUEbikes Availability. The `projects` array in `config.json` is the source of truth for their current order and previous/next navigation; do not infer release dates from the position of a project card. 3D Editor is no longer featured as a floppy-disk project, but remains linked from the Engineering page. Public project directories remain available. Confidential project demos and their preview assets are excluded from the published site.
 
 ## WhatIf Studio frontend preview
 
