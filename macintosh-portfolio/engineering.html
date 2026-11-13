@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Engineering — Mengyu Han | Software Systems, Architecture & Delivery</title>
+  <meta name="description" content="How Mengyu Han approaches high-performance systems, software architecture, product engineering, and agile delivery. Selected work, technical decisions, and public evidence.">
+  <link rel="canonical" href="https://amory0709.github.io/macintosh-portfolio/engineering.html">
+  <meta property="og:type" content="profile">
+  <meta property="og:title" content="Engineering — Mengyu Han">
+  <meta property="og:description" content="From complex technical problems to software people can use: performance, architecture, product design, and delivery.">
+  <style>
+    :root { color-scheme: light; --ink:#15202c; --muted:#566272; --line:#d8e0e6; --blue:#175c88; --wash:#f5f7f8; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:#fff; color:var(--ink); font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; }
+    a { color:var(--blue); text-underline-offset:3px; }
+    .skip { position:absolute; top:-100px; left:8px; z-index:10; background:#fff; padding:8px; }
+    .skip:focus { top:8px; }
+    a:hover { text-decoration-thickness:2px; }
+    a:focus-visible { outline:3px solid #2279ad; outline-offset:3px; border-radius:2px; }
+    .wrap { width:min(100% - 40px,980px); margin:auto; }
+    header { border-bottom:1px solid var(--line); }
+    .top { min-height:72px; display:flex; align-items:center; justify-content:space-between; gap:20px; }
+    .name { font-size:15px; font-weight:720; color:var(--ink); text-decoration:none; letter-spacing:.01em; }
+    .back { font-size:13px; font-weight:600; }
+    .intro { padding:clamp(65px,9vw,115px) 0 62px; }
+    .eyebrow { font-size:12px; font-weight:750; color:var(--blue); text-transform:uppercase; letter-spacing:.17em; }
+    h1 { font-size:clamp(40px,6vw,69px); line-height:1.09; letter-spacing:-.055em; max-width:850px; margin:20px 0 20px; }
+    .lede { color:var(--muted); font-size:clamp(18px,2vw,22px); max-width:810px; line-height:1.6; }
+    .keywords { display:flex; flex-wrap:wrap; gap:9px; margin:26px 0 0; }
+    .keywords span { border:1px solid var(--line); padding:4px 13px; border-radius:50px; font-size:12px; color:#354355; }
+    section { padding:54px 0; border-top:1px solid var(--line); }
+    h2 { letter-spacing:-.035em; line-height:1.18; font-size:clamp(26px,3.5vw,36px); margin:0 0 14px; }
+    .summary { color:var(--muted); max-width:750px; margin:0 0 25px; }
+    .metrics, .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .metric, .item { background:var(--wash); padding:25px 27px; border:1px solid #edf0f2; border-radius:13px; }
+    .metric strong { display:block; font-size:clamp(25px,4vw,37px); line-height:1.2; letter-spacing:-.045em; }
+    .metric p, .item p { color:var(--muted); margin:8px 0 0; }
+    .metric small { font-size:12px; color:#677484; display:block; margin-top:7px; }
+    h3 { font-size:18px; letter-spacing:-.02em; margin:0 0 6px; line-height:1.35; }
+    .item .label { font:700 11px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--blue); text-transform:uppercase; letter-spacing:.12em; margin:0 0 9px; }
+    .work { display:grid; gap:0; }
+    .work article { padding:22px 0; border-bottom:1px solid var(--line); }
+    .work article:last-child { border-bottom:0; }
+    .work p { max-width:760px; color:var(--muted); margin:5px 0 7px; }
+    .work a { font-size:14px; font-weight:650; }
+    .note { color:#65717f; font-size:13px; margin-top:20px; }
+    .cta { background:#172838; color:#fff; padding:42px clamp(22px,5vw,45px); border-radius:15px; }
+    .cta h2 { margin-bottom:9px; }
+    .cta p { color:#d4e2ec; }
+    .cta a { color:#fff; font-weight:700; }
+    footer { padding:32px 0; color:#65717f; font-size:13px; }
+    footer .wrap { display:flex; gap:14px; justify-content:space-between; flex-wrap:wrap; }
+    @media (max-width:680px) { .wrap { width:min(100% - 34px,980px); } .metrics, .grid { grid-template-columns:1fr; } .metric,.item { padding:22px; } .intro { padding-top:56px; } section { padding:44px 0; } }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior:auto; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header><div class="wrap top"><a class="name" href="https://amory0709.github.io/">Mengyu Han</a><a class="back" href="https://amory0709.github.io/">← Interactive portfolio</a></div></header>
+  <main id="main" class="wrap">
+    <div class="intro">
+      <div class="eyebrow">Engineering approach · Selected work</div>
+      <h1>I build systems,<br>not just features.</h1>
+      <p class="lede">I'm a software engineer working across high-performance interfaces, full-stack architecture, and product delivery. I like the problems where rendering, data flow, reliability, and human interaction have to work together—and where a good technical decision must survive real use.</p>
+      <div class="keywords"><span>TypeScript / Angular / React</span><span>Three.js / WebGL</span><span>C# / .NET</span><span>System design</span><span>Product engineering</span><span>Agile delivery</span></div>
+    </div>
+    <section aria-labelledby="outcomes">
+      <h2 id="outcomes">Outcomes over buzzwords.</h2>
+      <p class="summary">Selected outcomes from professional projects, presented as context-specific achievements rather than claims of universal performance.</p>
+      <div class="metrics">
+        <div class="metric"><strong>0–15 → 60+ FPS</strong><p>Optimized a multi-million-element interactive 3D experience through a redesigned GPU-based rendering pipeline.</p><small>Comparable project data and hardware; not a general browser benchmark.</small></div>
+        <div class="metric"><strong>~5 s cached</strong><p>Reduced repeat loading of a roughly nine-million-element dataset through streaming and persistent browser caching.</p><small>Representative workflow; cold loads took longer and network conditions matter.</small></div>
+        <div class="metric"><strong>3-person team</strong><p>Led delivery of an interactive spatial-analysis feature from requirements and coordinate logic to implementation and field validation.</p><small>30+ project field tests reported; hands-on technical lead, not a formal people-manager claim.</small></div>
+        <div class="metric"><strong>US patent co-inventor</strong><p>Contributed to a decision-support algorithm and full-stack prototype underlying a granted U.S. patent.</p><small><a href="https://patents.google.com/patent/US12404748B2/en" target="_blank" rel="noopener noreferrer">US 12,404,748 · issued September 2025</a></small></div>
+      </div>
+    </section>
+    <section aria-labelledby="thinking">
+      <h2 id="thinking">How I make engineering decisions.</h2>
+      <p class="summary">The domain can change. The method—understand constraints, identify invariants, choose trade-offs, and verify behavior—transfers.</p>
+      <div class="grid">
+        <div class="item"><p class="label">01 · Performance engineering</p><h3>Find the bottleneck before adding complexity.</h3><p>Profile rendering, CPU/GPU boundaries, load time, and interaction latency. Optimize the actual user-facing path, then verify correctness as well as speed.</p></div>
+        <div class="item"><p class="label">02 · System architecture</p><h3>Make ownership and failure states explicit.</h3><p>Design data flow across UI state, workers, backend APIs, persistent storage, and GPU tasks. Treat cancellation, memory, and stale work as architecture problems.</p></div>
+        <div class="item"><p class="label">03 · Product design</p><h3>Start with the job the user needs to finish.</h3><p>Work backward from interaction, decision points, and acceptance criteria. A small usable workflow is more valuable than a sophisticated but inaccessible capability.</p></div>
+        <div class="item"><p class="label">04 · Delivery and leadership</p><h3>Keep changes small, reviewable, and testable.</h3><p>My work includes Scrum Master facilitation, cross-team integration, engineering training, and hands-on delivery—not simply implementing assigned tickets.</p></div>
+      </div>
+    </section>
+    <section aria-labelledby="proof">
+      <h2 id="proof">Public engineering evidence.</h2>
+      <p class="summary">These independent projects show how I structure and reason about software outside a single industry.</p>
+      <div class="work">
+        <article><h3>3D Asset Editor · Interactive product architecture</h3><p>React / TypeScript editor exploring undo transactions, geometry mutation, state boundaries, collider configuration, and simulation lifecycles. Experimental, single-user scope.</p><a href="https://github.com/Amory0709/3d-editor">Inspect source ↗</a> · <a href="https://github.com/Amory0709/3d-editor/pull/25">Read design decisions (draft PR) ↗</a></article>
+        <article><h3>High-Scale Visualization Lab · GPU and async systems</h3><p>WebGL2 / experimental WebGPU rendering with cancellable requests, data workers, surface/volume previews, and correctness-oriented performance experiments.</p><a href="https://github.com/Amory0709/reservoir-volume-lab">Inspect source ↗</a> · <a href="https://github.com/Amory0709/reservoir-volume-lab/pull/1">Read architecture case study (draft PR) ↗</a></article>
+        <article><h3>Agile Thinking Prompt · Engineering delivery methods</h3><p>An experiment in outcome-driven AI-assisted implementation: acceptance criteria, decisions with trade-offs, WIP limits, and honest verification. Not a substitute for Scrum.</p><a href="https://github.com/Amory0709/Agile-Thinking-Prompt/pull/1">Review proposed toolkit (draft) ↗</a></article>
+        <article><h3>The Web — A Living History · Product craftsmanship</h3><p>An interactive educational experience connecting visual storytelling, user navigation, and accessible technical explanation.</p><a href="https://web-history.onrender.com/">Explore experience ↗</a></article>
+      </div>
+      <p class="note">Public repositories include experiments and prototypes; their descriptions distinguish implemented functionality from planned work. Professional impact figures above come from project experience, not independently audited public benchmarks.</p>
+    </section>
+    <section aria-labelledby="next">
+      <div class="cta"><h2 id="next">Looking for problems worth owning.</h2><p>I'm interested in Senior Software Engineer, Product Engineer, real-time graphics, and hands-on technical leadership opportunities—especially remote-first teams building ambitious software across industries.</p><p><a href="https://www.linkedin.com/in/mengyu-amori-han-4667a5155/">Connect on LinkedIn ↗</a> &nbsp;·&nbsp; <a href="https://github.com/Amory0709">GitHub ↗</a></p></div>
+    </section>
+  </main>
+  <footer><div class="wrap"><span>© Mengyu Han · Engineering</span><span>Performance · Architecture · Product · Delivery</span></div></footer>
+</body>
+</html>
