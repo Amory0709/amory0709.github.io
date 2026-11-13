@@ -41,7 +41,7 @@ test('engineering page offers readable structure and inspectable evidence', () =
 test('README featured-project summary agrees with the portfolio config', () => {
   const readme = read('../../README.md');
   const order = config.projects.map(project => project.title).join(', ');
-  assert.ok(readme.includes(`The ${config.projects.length} featured works, in display order: ${order}.`));
+  assert.ok(readme.includes(`Featured projects, in display order: ${order}.`));
 });
 
 test('cross-industry positioning preserves every original featured project', () => {
